@@ -125,6 +125,7 @@ table.xl td.num{text-align:center}
     <b>النسخ الاحتياطي</b>
     <div class="mu" id="stinfo"></div>
     <div class="fsbox" id="fsbox"></div>
+    <div class="fsbox hide" id="sybox"></div>
     <div class="row"><button id="bk">تصدير نسخة احتياطية</button><label class="btn2" for="rf">استعادة نسخة</label><input type="file" id="rf" class="hide" accept=".json,application/json"></div>
     <div id="bmsg"></div>
   </div>
@@ -210,7 +211,7 @@ function flush(){clearTimeout(svT);if(!SID||!D||!CUR||!DIRTY)return Promise.reso
  return Promise.all([kvSet('state',SID,S),kvSet('meta',SID,m)]).then(function(r){var ok=!!(r[0]&&r[1]);
   var e=$('sv');if(e)e.textContent=ok?'✔ محفوظ '+pad2(new Date().getHours())+':'+pad2(new Date().getMinutes()):'⚠ لم يُحفظ';
   if(!ok){DIRTY=true;$('imsg').innerHTML='<div class="msg bad">تعذّر الحفظ على هذا الجهاز (المساحة ممتلئة أو التخزين معطّل). صدّر نسخة احتياطية الآن.</div>'}
-  if(ok)fsSchedule();return ok})}
+  if(ok){fsSchedule();sySchedule()}return ok})}
 window.addEventListener('pagehide',function(){flush()});
 document.addEventListener('visibilitychange',function(){if(document.hidden)flush()});
 
@@ -219,10 +220,10 @@ function showHome(){if(typeof cam!=='undefined'&&cam.on)camStop();
  return flush().then(function(ok){if(ok===false&&!confirm('تعذّر حفظ آخر التغييرات. الخروج رغم ذلك؟'))return;
   SID=null;CUR=null;D=null;S={dev:{},extra:{},acc:{}};DIRTY=false;$('imsg').innerHTML='';
   $('wk').classList.add('hide');$('app').classList.add('hide');$('hh').classList.remove('hide');$('home').classList.remove('hide');window.scrollTo(0,0);return renderHome()})}
-function openSession(id){return Promise.all([kvGet('data',id),kvGet('state',id),kvGet('meta',id)]).then(function(r){
+function openSession(id){return (SY.on?syPullOne(id).catch(function(){}):Promise.resolve()).then(function(){return Promise.all([kvGet('data',id),kvGet('state',id),kvGet('meta',id)]).then(function(r){
  if(!r[0]||!r[2]){alert('تعذّر فتح هذا الجرد (البيانات غير موجودة).');return}
  D=r[0];S=r[1]||{dev:{},extra:{},acc:{}};norm();SID=id;CUR=r[2];DIRTY=false;
- $('imsg').innerHTML='';$('smsg').innerHTML='';enterWork()})}
+ $('imsg').innerHTML='';$('smsg').innerHTML='';enterWork()})})}
 function pill(m){return m.status==='done'?'<span class="pill ok">منتهي '+fmt(m.finishedAt)+'</span>':'<span class="pill on">جارٍ</span>'}
 function pc(a,b){return b?Math.round(a/b*100):0}
 function renderHome(){return KVR.then(function(){return kvAll('meta')}).then(function(list){
@@ -288,6 +289,41 @@ function fsInit(){return KVR.then(function(){if(!FSOK||useLS){fsUi();return}
  return kvGet('state','_fh').then(function(hd){if(!hd){fsUi();return}FH=hd;return fsPerm(hd).then(function(p){FSTATE=p==='granted'?'on':'need';fsUi()})})}).catch(function(){fsUi()})}
 $('fsbox').addEventListener('click',function(e){var b=e.target.closest('button'),a=b&&b.getAttribute('data-fs');if(!a)return;if(a==='link')fsLink();else if(a==='re')fsReactivate();else if(a==='unlink')fsUnlink()});
 $('fvb').onclick=function(){fsReactivate()};
+var SY={av:false,on:false,code:'',T:null,last:0,err:'',busy:false};
+function syCode(){try{return localStorage.getItem('stk2:code')||''}catch(e){return ''}}
+function syApi(path,method,body){var o={method:method||'GET',headers:{'X-Code':SY.code}};if(body!==undefined){o.body=JSON.stringify(body);o.headers['Content-Type']='application/json'}return fetch(path,o)}
+function syUi(){var b=$('sybox');if(!b)return;if(!SY.av){b.classList.add('hide');return}b.classList.remove('hide');
+ if(!SY.on){b.innerHTML='<div class="fs-t">المزامنة بين الأجهزة (السيرفر)</div><div class="mu">أدخل رمز الدخول ليُحفظ الجرد على السيرفر ويظهر على كل أجهزتك.</div>'+(SY.err?'<div class="msg bad" style="margin-top:8px">'+esc(SY.err)+'</div>':'')+'<div class="row"><input id="sycode" type="password" placeholder="رمز الدخول" autocomplete="off" style="flex:1;min-width:140px"><button class="p" data-sy="login">ربط</button></div>'}
+ else{b.innerHTML='<div class="fs-t good">✔ المزامنة مع السيرفر مفعّلة</div><div class="mu">'+(SY.err?'<span class="badc">'+esc(SY.err)+'</span>':(SY.last?'آخر مزامنة '+pad2(new Date(SY.last).getHours())+':'+pad2(new Date(SY.last).getMinutes()):'جارٍ المزامنة...'))+'</div><div class="row"><button data-sy="now">مزامنة الآن</button><button data-sy="out">تسجيل الخروج</button></div>'}}
+function syLocal(id){return Promise.all([kvGet('data',id),kvGet('state',id),kvGet('meta',id)]).then(function(r){
+ if(id===SID&&D&&CUR)return{data:D,state:S,meta:CUR};return{data:r[0],state:r[1],meta:r[2]}})}
+function syPush(id,full){return syLocal(id).then(function(x){if(!x.meta||!x.data)return;
+ var b={meta:x.meta,state:x.state||{dev:{},extra:{},acc:{}}};if(full)b.data=x.data;
+ return syApi('/api/s/'+encodeURIComponent(id),'PUT',b).then(function(r){if(r.status===409)return;if(r.status===401){SY.on=false;SY.err='رمز الدخول غير صحيح أو تغيّر.';syUi();return}if(r.status===400&&!full)return syPush(id,true);if(!r.ok)throw new Error('HTTP '+r.status);SY.last=Date.now();SY.err='';syUi()})})}
+function syPullOne(id){return syApi('/api/s/'+encodeURIComponent(id)).then(function(r){if(!r.ok)return;return r.json()}).then(function(o){if(!o||!o.meta||!o.data)return;
+ return kvGet('meta',id).then(function(l){if(l&&l.updated>=o.meta.updated)return;return kvSet('data',id,o.data).then(function(){return kvSet('state',id,o.state||{dev:{},extra:{},acc:{}})}).then(function(){return kvSet('meta',id,o.meta)})})})}
+function syAll(){if(!SY.on||SY.busy)return Promise.resolve(false);SY.busy=true;var ch=false;
+ return syApi('/api/list').then(function(r){if(r.status===401){SY.on=false;SY.err='رمز الدخول غير صحيح أو تغيّر.';return null}if(!r.ok)throw new Error('HTTP '+r.status);return r.json()}).then(function(rl){
+  if(!rl)return;var rm={};rl.forEach(function(e){rm[e.id]=e});
+  return kvAll('meta').then(function(ms){var lm={},chain=Promise.resolve(),live=($('wk')&&!$('wk').classList.contains('hide'))?SID:null;
+   ms.forEach(function(m){if(m&&m.id)lm[m.id]=m});
+   rl.forEach(function(e){if(e.id===live)return;var l=lm[e.id];
+    if(e.del){if(l&&l.updated<=e.updated)chain=chain.then(function(){ch=true;return Promise.all([kvDel('data',e.id),kvDel('state',e.id),kvDel('meta',e.id)])});return}
+    if(!l||e.updated>l.updated)chain=chain.then(function(){ch=true;return syPullOne(e.id)})});
+   Object.keys(lm).forEach(function(id){var m=lm[id],e=rm[id];if(id===live)return;
+    if(!e||e.del||e.updated<m.updated)chain=chain.then(function(){return syPush(id,!e||!!e.del)})});
+   return chain})}).then(function(){if(SY.on){SY.last=Date.now();SY.err=''}}).catch(function(e){SY.err='تعذّرت المزامنة (تحقق من الاتصال).'}).then(function(){SY.busy=false;syUi();return ch})}
+function sySchedule(){if(!SY.on||SY.T||!SID)return;var id=SID;SY.T=setTimeout(function(){SY.T=null;syPush(id,false).catch(function(){SY.err='تعذّرت المزامنة (تحقق من الاتصال).';syUi()})},3000)}
+function syInit(){if(location.protocol.indexOf('http')!==0)return Promise.resolve();
+ return fetch('/api/ping').then(function(r){return r.ok?r.json():null}).then(function(o){if(!o||!o.ok)return;SY.av=true;SY.code=syCode();SY.on=!!SY.code;syUi();
+  if(SY.on)return syAll().then(function(ch){if(ch&&!SID)return renderHome()})}).catch(function(){})}
+function syLogin(){var c=($('sycode')||{}).value||'';if(!c)return;SY.code=c;
+ syApi('/api/list').then(function(r){if(r.status===401){SY.err='رمز الدخول غير صحيح.';SY.on=false;syUi();return}if(!r.ok)throw new Error();try{localStorage.setItem('stk2:code',c)}catch(e){}SY.on=true;SY.err='';syUi();return syAll().then(function(){return renderHome()})}).catch(function(){SY.err='تعذّر الاتصال بالسيرفر.';syUi()})}
+$('sybox').addEventListener('click',function(e){var b=e.target.closest('button'),a=b&&b.getAttribute('data-sy');if(!a)return;
+ if(a==='login')syLogin();else if(a==='now'){SY.last=0;syUi();flush().then(syAll).then(function(){return renderHome()})}
+ else if(a==='out'){SY.on=false;SY.code='';SY.err='';try{localStorage.removeItem('stk2:code')}catch(x){}syUi()}});
+$('sybox').addEventListener('keydown',function(e){if(e.key==='Enter'&&e.target.id==='sycode')syLogin()});
+window.addEventListener('focus',function(){if(SY.on&&!SID&&!$('home').classList.contains('hide'))syAll().then(function(ch){if(ch)renderHome()})});
 function dl(name,text){var b=new Blob([text],{type:'application/json'}),a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=name;document.body.appendChild(a);a.click();setTimeout(function(){URL.revokeObjectURL(a.href);a.remove()},1500)}
 function backupAll(){return flush().then(function(){return kvAll('meta')}).then(function(ms){
  return Promise.all(ms.map(function(m){return Promise.all([kvGet('data',m.id),kvGet('state',m.id)]).then(function(r){return{meta:m,data:r[0],state:r[1]}})})).then(function(arr){
@@ -543,10 +579,10 @@ $('fb').onclick=function(){if(!confirm('إنهاء الجرد وحفظه؟ يب�
 $('home').addEventListener('click',function(e){var b=e.target.closest('button');if(!b)return;
  var o=b.getAttribute('data-open'),d=b.getAttribute('data-del');
  if(o)openSession(o);
- else if(d&&confirm('حذف هذا الجرد نهائياً من هذا الجهاز؟'))Promise.all([kvDel('data',d),kvDel('state',d),kvDel('meta',d)]).then(function(){delete FC[d];fsSchedule();return renderHome()})});
+ else if(d&&confirm('حذف هذا الجرد نهائياً من هذا الجهاز؟'))Promise.all([kvDel('data',d),kvDel('state',d),kvDel('meta',d)]).then(function(){delete FC[d];fsSchedule();if(SY.on)syApi('/api/s/'+encodeURIComponent(d),'DELETE').catch(function(){});return renderHome()})});
 $('bk').onclick=function(){backupAll()};
 $('rf').onchange=function(e){var f=e.target.files[0];if(f)restoreAll(f);$('rf').value=''};
-fsInit();
+fsInit();syInit();
 KVR.then(migrate).then(renderHome).then(function(){try{if(navigator.storage&&navigator.storage.persist)navigator.storage.persist().then(function(p){PERSIST=p;stInfo()})}catch(e){}});
 </script>
 </body>
