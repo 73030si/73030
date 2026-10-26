@@ -160,7 +160,7 @@ function render(keep){
     var ks=Object.keys(g).sort(function(a,b){var A=g[a],B=g[b];return(B.a.length-B.a.filter(function(x){return S.dev[x.n]}).length)-(A.a.length-A.a.filter(function(x){return S.dev[x.n]}).length)});
     var h='<table><tr><th>الجهاز</th><th>الموقع</th><th>مجرود / متوقع</th></tr>';
     ks.forEach(function(k){var G=g[k],c=G.a.filter(function(x){return S.dev[x.n]}).length,done=c===G.a.length;
-      var sws=G.a.filter(function(x){return rv[x.n]});h+='<tr'+(sws.length?' class="rwarn"':(done?' class="rdone"':((S.fin||c>0)?' class="rbad"':'')))+'><td><details><summary>'+esc(G.d)+'</summary><div class="ltr mu">'+G.a.map(function(x){return S.dev[x.n]?'<div>✔ '+esc(x.n)+(rv[x.n]?' <span class="mu">(الفعلي: '+esc(rv[x.n])+')</span>':'')+' <button data-un="'+esc(x.n)+'" style="padding:1px 8px;color:var(--bad)">✕ إلغاء</button></div>':'<div>✘ '+esc(x.n)+'</div>'}).join('')+'</div></details>'+(sws.length?'<div style="color:var(--warn);font-size:12px;margin-top:4px">⚠ سريال مُبدَّل — '+sws.map(function(x){return'الفعلي: <span class="ltr">'+esc(rv[x.n])+'</span> ⇄ النظام: <span class="ltr">'+esc(x.n)+'</span>'}).join(' | ')+'</div>':'')+'</td><td class="mu">'+esc(G.s)+'</td><td class="'+(done&&!sws.length?'good':'')+'">'+c+' / '+G.a.length+'</td></tr>'});
+      var sws=G.a.filter(function(x){return rv[x.n]});h+='<tr'+(sws.length?' class="rwarn"':(done?' class="rdone"':((S.fin||c>0)?' class="rbad"':'')))+'><td><details data-k="'+esc(k)+'"'+(OPEN[k]?' open':'')+'><summary>'+esc(G.d)+'</summary><div class="ltr mu">'+G.a.map(function(x){return S.dev[x.n]?'<div>✔ '+esc(x.n)+(rv[x.n]?' <span class="mu">(الفعلي: '+esc(rv[x.n])+')</span>':'')+' <button data-un="'+esc(x.n)+'" style="padding:1px 8px;color:var(--bad)">✕ إلغاء</button></div>':'<div>✘ '+esc(x.n)+' <button data-ck="'+esc(x.n)+'" style="padding:1px 8px;color:var(--ok)">✔ جرد يدوي</button></div>'}).join('')+'</div></details>'+(sws.length?'<div style="color:var(--warn);font-size:12px;margin-top:4px">⚠ سريال مُبدَّل — '+sws.map(function(x){return'الفعلي: <span class="ltr">'+esc(rv[x.n])+'</span> ⇄ النظام: <span class="ltr">'+esc(x.n)+'</span>'}).join(' | ')+'</div>':'')+'</td><td class="mu">'+esc(G.s)+'</td><td class="'+(done&&!sws.length?'good':'')+'">'+c+' / '+G.a.length+'</td></tr>'});
     $('dev').innerHTML=h+'</table>';
   }
   if(curTab===2&&!keep||curTab===2&&keep){
@@ -261,7 +261,10 @@ function undo(){var m='';while(S.h&&S.h.length){var e=S.h.pop();
  $('smsg').innerHTML=m?'<div class="msg warn">↩ '+esc(m)+'</div>':'<div class="msg warn">لا يوجد شيء للتراجع عنه.</div>';save();render();$('ser').focus()}
 $('ub').onclick=undo;
 $('xtra').addEventListener('click',function(e){var b=e.target.closest('button'),s=b&&b.getAttribute('data-del');if(s){delete S.extra[s];save();render()}});
-$('dev').addEventListener('click',function(e){var b=e.target.closest('button'),s=b&&b.getAttribute('data-un');if(s&&confirm('إلغاء جرد هذا السريال؟\n'+s)){var a=null;Object.keys(S.swap||{}).forEach(function(k){if(S.swap[k]===s)a=k});if(a)unswap(a);else{delete S.dev[s];save();render()}}});$('rb').onclick=reset;
+$('dev').addEventListener('click',function(e){var b=e.target.closest('button'),s=b&&b.getAttribute('data-un');if(s&&confirm('إلغاء جرد هذا السريال؟\n'+s)){var a=null;Object.keys(S.swap||{}).forEach(function(k){if(S.swap[k]===s)a=k});if(a)unswap(a);else{delete S.dev[s];save();render()}}});var OPEN={};
+$('dev').addEventListener('toggle',function(e){var d=e.target,k=d.tagName==='DETAILS'&&d.getAttribute('data-k');if(k){if(d.open)OPEN[k]=1;else delete OPEN[k]}},true);
+$('dev').addEventListener('click',function(e){var b=e.target.closest('button'),s=b&&b.getAttribute('data-ck');if(s&&!S.dev[s]){S.dev[s]=Date.now();hist('d',s);var it=D.items.filter(function(x){return x.n===s})[0]||{};$('smsg').innerHTML='<div class="msg ok">✔ تم جرد '+esc(it.d||'')+' يدوياً: '+esc(s)+'</div>';save();render()}});
+$('rb').onclick=reset;
 load();init();
 </script>
 </body>
