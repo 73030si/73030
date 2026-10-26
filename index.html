@@ -57,7 +57,7 @@ th,td{padding:7px 8px;border-bottom:1px solid var(--bd);text-align:start;vertica
 
   <div id="p1">
     <div class="card">
-      <div class="row"><input id="ser" class="big" placeholder="امسح أو اكتب السريال ثم Enter" autocomplete="off" inputmode="text"><button class="p" id="sb">تسجيل</button><button id="cb">📷 كاميرا</button></div><div id="cw" class="hide" style="margin-top:8px"><video id="cv" playsinline muted style="width:100%;max-height:240px;border-radius:8px;background:#000"></video></div>
+      <div class="row"><input id="ser" class="big" placeholder="امسح أو اكتب السريال ثم Enter" autocomplete="off" inputmode="text"><button class="p" id="sb">تسجيل</button><button id="cb">📷 كاميرا</button><button id="ub">↩ تراجع</button></div><div id="cw" class="hide" style="margin-top:8px"><video id="cv" playsinline muted style="width:100%;max-height:240px;border-radius:8px;background:#000"></video></div>
       <div id="smsg"></div>
     </div>
     <div class="card hide" id="xcard"><b>سيريالات زائدة (غير موجودة في الملف)</b><div class="mu">اكتب اسم الجهاز ليُسجَّل في التقرير</div><div id="xtra"></div></div>
@@ -139,9 +139,9 @@ function scan(val){
   var v=clean(val!=null?val:$('ser').value).toUpperCase();$('ser').value='';if(!v)return;
   var m=D.items.filter(function(x){return x.n===v})[0],h;
   if(!m&&v.length>1&&v.charAt(0)==='S'){v=v.slice(1);m=D.items.filter(function(x){return x.n===v})[0]}
-  if(!m){if(S.extra[v])h='<div class="msg warn">سريال زائد مُسجَّل مسبقاً: '+esc(v)+'</div>';else{S.extra[v]={t:Date.now(),name:''};h='<div class="msg bad">⚠ السريال '+esc(v)+' غير موجود في الملف (زائد). اكتب اسم الجهاز في الخانة الحمراء أدناه.</div>'}}
+  if(!m){if(S.extra[v])h='<div class="msg warn">سريال زائد مُسجَّل مسبقاً: '+esc(v)+'</div>';else{S.extra[v]={t:Date.now(),name:''};hist('e',v);h='<div class="msg bad">⚠ السريال '+esc(v)+' غير موجود في الملف (زائد). اكتب اسم الجهاز في الخانة الحمراء أدناه.</div>'}}
   else if(S.dev[v]){h='<div class="msg warn">مُسجَّل مسبقاً: '+esc(m.d)+'</div>'}
-  else{S.dev[v]=Date.now();h='<div class="msg ok">✔ '+esc(m.d)+' <span class="mu">('+esc(m.s)+')</span></div>';
+  else{S.dev[v]=Date.now();hist('d',v);h='<div class="msg ok">✔ '+esc(m.d)+' <span class="mu">('+esc(m.s)+')</span></div>';
     var sb=$('sub').value;if(sb&&m.s!==sb)h+='<div class="msg warn">هذا الجهاز مسجّل في موقع آخر: '+esc(m.s)+'</div>'}
   $('smsg').innerHTML=h;save();render();$('ser').focus()}
 $('ser').addEventListener('keydown',function(e){if(e.key==='Enter')scan()});
@@ -158,7 +158,7 @@ function render(keep){
     var ks=Object.keys(g).sort(function(a,b){var A=g[a],B=g[b];return(B.a.length-B.a.filter(function(x){return S.dev[x.n]}).length)-(A.a.length-A.a.filter(function(x){return S.dev[x.n]}).length)});
     var h='<table><tr><th>الجهاز</th><th>الموقع</th><th>مجرود / متوقع</th></tr>';
     ks.forEach(function(k){var G=g[k],c=G.a.filter(function(x){return S.dev[x.n]}).length,done=c===G.a.length;
-      h+='<tr'+(done?' class="rdone"':((S.fin||c>0)?' class="rbad"':''))+'><td><details><summary>'+esc(G.d)+'</summary><div class="ltr mu">'+G.a.map(function(x){return(S.dev[x.n]?'✔ ':'✘ ')+esc(x.n)}).join('<br>')+'</div></details></td><td class="mu">'+esc(G.s)+'</td><td class="'+(done?'good':'')+'">'+c+' / '+G.a.length+'</td></tr>'});
+      h+='<tr'+(done?' class="rdone"':((S.fin||c>0)?' class="rbad"':''))+'><td><details><summary>'+esc(G.d)+'</summary><div class="ltr mu">'+G.a.map(function(x){return S.dev[x.n]?'<div>✔ '+esc(x.n)+' <button data-un="'+esc(x.n)+'" style="padding:1px 8px;color:var(--bad)">✕ إلغاء</button></div>':'<div>✘ '+esc(x.n)+'</div>'}).join('')+'</div></details></td><td class="mu">'+esc(G.s)+'</td><td class="'+(done?'good':'')+'">'+c+' / '+G.a.length+'</td></tr>'});
     $('dev').innerHTML=h+'</table>';
   }
   if(curTab===2&&!keep||curTab===2&&keep){
@@ -229,9 +229,17 @@ $('cb').onclick=function(){cam.on?camStop():camStart()};function exportFinal(){
  XLSX.writeFile(wb,'inventory-final-'+ds+'.xlsx')}
 $('eb').onclick=exportFinal;
 function renderX(){var ks=Object.keys(S.extra);$('xcard').classList.toggle('hide',!ks.length);
- $('xtra').innerHTML=ks.map(function(s){var nm=(S.extra[s]||{}).name||'';return '<div class="row" style="margin-top:6px"><span class="ltr" style="min-width:130px">'+esc(s)+'</span><input data-s="'+esc(s)+'" value="'+esc(nm)+'" placeholder="اسم الجهاز" style="flex:1;min-width:140px;'+(nm?'':'border-color:var(--bad)')+'"></div>'}).join('')}
+ $('xtra').innerHTML=ks.map(function(s){var nm=(S.extra[s]||{}).name||'';return '<div class="row" style="margin-top:6px"><span class="ltr" style="min-width:130px">'+esc(s)+'</span><input data-s="'+esc(s)+'" value="'+esc(nm)+'" placeholder="اسم الجهاز" style="flex:1;min-width:140px;'+(nm?'':'border-color:var(--bad)')+'"><button data-del="'+esc(s)+'">✕</button></div>'}).join('')}
 $('xtra').addEventListener('input',function(e){var i=e.target,s=i.getAttribute('data-s');if(s&&S.extra[s]){S.extra[s].name=i.value;i.style.borderColor=i.value?'':'var(--bad)';save()}});
-$('fin').onchange=function(){S.fin=this.checked;save();render()};$('rb').onclick=reset;
+$('fin').onchange=function(){S.fin=this.checked;save();render()};
+function hist(t,s){S.h=S.h||[];S.h.push({t:t,s:s});if(S.h.length>300)S.h.shift()}
+function undo(){var m='';while(S.h&&S.h.length){var e=S.h.pop();
+ if(e.t==='d'&&S.dev[e.s]){delete S.dev[e.s];m='تم التراجع عن جرد: '+e.s;break}
+ if(e.t==='e'&&S.extra[e.s]){delete S.extra[e.s];m='تم التراجع عن السريال الزائد: '+e.s;break}}
+ $('smsg').innerHTML=m?'<div class="msg warn">↩ '+esc(m)+'</div>':'<div class="msg warn">لا يوجد شيء للتراجع عنه.</div>';save();render();$('ser').focus()}
+$('ub').onclick=undo;
+$('xtra').addEventListener('click',function(e){var b=e.target.closest('button'),s=b&&b.getAttribute('data-del');if(s){delete S.extra[s];save();render()}});
+$('dev').addEventListener('click',function(e){var b=e.target.closest('button'),s=b&&b.getAttribute('data-un');if(s&&confirm('إلغاء جرد هذا السريال؟\n'+s)){delete S.dev[s];save();render()}});$('rb').onclick=reset;
 load();init();
 </script>
 </body>
