@@ -141,7 +141,7 @@ function scan(val){
   var v=clean(val!=null?val:$('ser').value).toUpperCase();$('ser').value='';if(!v)return;
   var m=D.items.filter(function(x){return x.n===v})[0],h;
   if(!m&&v.length>1&&v.charAt(0)==='S'){v=v.slice(1);m=D.items.filter(function(x){return x.n===v})[0]}
-  if(!m){if(S.extra[v])h='<div class="msg warn">سريال زائد مُسجَّل مسبقاً: '+esc(v)+'</div>';else{S.extra[v]={t:Date.now(),name:''};hist('e',v);h='<div class="msg bad">⚠ السريال '+esc(v)+' غير موجود في الملف (زائد). اكتب اسم الجهاز في الخانة الحمراء أدناه.</div>'}}
+  if(!m){if(S.swap&&S.swap[v])h='<div class="msg warn">سريال بديل مُسجَّل مسبقاً: '+esc(v)+'</div>';else if(S.extra[v])h='<div class="msg warn">سريال زائد مُسجَّل مسبقاً: '+esc(v)+'</div>';else{S.extra[v]={t:Date.now(),name:''};hist('e',v);h='<div class="msg bad">⚠ السريال '+esc(v)+' غير موجود في الملف (زائد). اكتب اسم الجهاز في الخانة الحمراء أدناه.</div>'}}
   else if(isEx(m)){h='<div class="msg warn">هذا المنتج ضمن "ليست بحاجة للجرد" ولم يُسجَّل: '+esc(m.d)+'</div>'}else if(S.dev[v]){h='<div class="msg warn">مُسجَّل مسبقاً: '+esc(m.d)+'</div>'}
   else{S.dev[v]=Date.now();hist('d',v);h='<div class="msg ok">✔ '+esc(m.d)+' <span class="mu">('+esc(m.s)+')</span></div>';
     var sb=$('sub').value;if(sb&&m.s!==sb)h+='<div class="msg warn">هذا الجهاز مسجّل في موقع آخر: '+esc(m.s)+'</div>'}
@@ -150,7 +150,7 @@ $('ser').addEventListener('keydown',function(e){if(e.key==='Enter')scan()});
 function setAcc(k,v){v=Math.max(0,parseInt(v)||0);S.acc[k]=v;save();render(true)}
 
 function render(keep){
-  if(!D)return;renderX();var it=sel(),dv=it.filter(function(x){return x.n}),ac=it.filter(function(x){return!x.n});
+  if(!D)return;renderX();var rv={};Object.keys(S.swap||{}).forEach(function(a){rv[S.swap[a]]=a});var it=sel(),dv=it.filter(function(x){return x.n}),ac=it.filter(function(x){return!x.n});
   var found=dv.filter(function(x){return S.dev[x.n]}).length;
   var aE=0,aC=0;ac.forEach(function(x){aE+=x.q;aC+=Math.min(S.acc[accKey(x)]||0,1e9)});
   var pct=dv.length?Math.round(found/dv.length*100):0;
@@ -160,7 +160,7 @@ function render(keep){
     var ks=Object.keys(g).sort(function(a,b){var A=g[a],B=g[b];return(B.a.length-B.a.filter(function(x){return S.dev[x.n]}).length)-(A.a.length-A.a.filter(function(x){return S.dev[x.n]}).length)});
     var h='<table><tr><th>الجهاز</th><th>الموقع</th><th>مجرود / متوقع</th></tr>';
     ks.forEach(function(k){var G=g[k],c=G.a.filter(function(x){return S.dev[x.n]}).length,done=c===G.a.length;
-      h+='<tr'+(done?' class="rdone"':((S.fin||c>0)?' class="rbad"':''))+'><td><details><summary>'+esc(G.d)+'</summary><div class="ltr mu">'+G.a.map(function(x){return S.dev[x.n]?'<div>✔ '+esc(x.n)+' <button data-un="'+esc(x.n)+'" style="padding:1px 8px;color:var(--bad)">✕ إلغاء</button></div>':'<div>✘ '+esc(x.n)+'</div>'}).join('')+'</div></details></td><td class="mu">'+esc(G.s)+'</td><td class="'+(done?'good':'')+'">'+c+' / '+G.a.length+'</td></tr>'});
+      var sws=G.a.filter(function(x){return rv[x.n]});h+='<tr'+(sws.length?' class="rwarn"':(done?' class="rdone"':((S.fin||c>0)?' class="rbad"':'')))+'><td><details><summary>'+esc(G.d)+'</summary><div class="ltr mu">'+G.a.map(function(x){return S.dev[x.n]?'<div>✔ '+esc(x.n)+(rv[x.n]?' <span class="mu">(الفعلي: '+esc(rv[x.n])+')</span>':'')+' <button data-un="'+esc(x.n)+'" style="padding:1px 8px;color:var(--bad)">✕ إلغاء</button></div>':'<div>✘ '+esc(x.n)+'</div>'}).join('')+'</div></details>'+(sws.length?'<div style="color:var(--warn);font-size:12px;margin-top:4px">⚠ سريال مُبدَّل — '+sws.map(function(x){return'الفعلي: <span class="ltr">'+esc(rv[x.n])+'</span> ⇄ النظام: <span class="ltr">'+esc(x.n)+'</span>'}).join(' | ')+'</div>':'')+'</td><td class="mu">'+esc(G.s)+'</td><td class="'+(done&&!sws.length?'good':'')+'">'+c+' / '+G.a.length+'</td></tr>'});
     $('dev').innerHTML=h+'</table>';
   }
   if(curTab===2&&!keep||curTab===2&&keep){
@@ -178,7 +178,7 @@ function render(keep){
   $('ex').innerHTML=h4}
   if(curTab===3){
     var miss=dv.filter(function(x){return!S.dev[x.n]}),ad=ac.filter(function(x){return S.acc[accKey(x)]!=null&&S.acc[accKey(x)]!==x.q}),un=ac.filter(function(x){return S.acc[accKey(x)]==null});
-    $('rep').innerHTML='<p>أجهزة ناقصة: <b class="badc">'+miss.length+'</b> — سريال زائد: <b class="badc">'+Object.keys(S.extra).length+'</b> — إكسسوارات بها فرق: <b class="badc">'+ad.length+'</b> — إكسسوارات لم تُعدّ: <b>'+un.length+'</b></p>'+(Object.keys(S.extra).length?'<details open><summary>السيريالات الزائدة</summary><div class="ltr">'+Object.keys(S.extra).map(function(s){return esc(s)+' — '+esc(S.extra[s].name||'بدون اسم')}).join('<br>')+'</div></details>':'');
+    $('rep').innerHTML='<p>أجهزة ناقصة: <b class="badc">'+miss.length+'</b> — سريال زائد: <b class="badc">'+Object.keys(S.extra).length+'</b> — إكسسوارات بها فرق: <b class="badc">'+ad.length+'</b> — إكسسوارات لم تُعدّ: <b>'+un.length+'</b></p>'+(Object.keys(S.swap||{}).length?'<details open><summary>سيريالات مُبدَّلة</summary><div class="ltr">'+Object.keys(S.swap).map(function(a){return esc(a)+' ⇄ '+esc(S.swap[a])}).join('<br>')+'</div></details>':'')+(Object.keys(S.extra).length?'<details open><summary>السيريالات الزائدة</summary><div class="ltr">'+Object.keys(S.extra).map(function(s){return esc(s)+' — '+esc(S.extra[s].name||'بدون اسم')}).join('<br>')+'</div></details>':'');
   }
 }
 $('acc').addEventListener('click',function(e){var b=e.target.closest('button');if(!b)return;var k=b.getAttribute('data-k');setAcc(k,(S.acc[k]||0)+parseInt(b.getAttribute('data-d')))});
@@ -218,17 +218,17 @@ function camStart(){
  }).catch(function(e){camStop();camMsg('تعذّر فتح الكاميرا: '+esc(e.message||e.name)+'. اسمح للموقع باستخدام الكاميرا.')})}
 $('cb').onclick=function(){cam.on?camStop():camStart()};function exportFinal(){
  if(typeof XLSX==='undefined'){alert('مكتبة Excel لم تتحمّل. تحتاج إنترنت للتصدير.');return}
- var it=sel(),rows=[],T={dev:0,found:0,miss:0,acc:0,accOk:0,accDiff:0,accNone:0};
+ var rvx={};Object.keys(S.swap||{}).forEach(function(a){rvx[S.swap[a]]=a});var it=sel(),rows=[],T={dev:0,found:0,miss:0,acc:0,accOk:0,accDiff:0,accNone:0};
  it.forEach(function(x){
   if(x.n){var f=!!S.dev[x.n];T.dev++;f?T.found++:T.miss++;
-   rows.push({'الموقع':x.s,'النوع':'جهاز','الصنف':x.d,'السريال':x.n,'المتوقع':1,'المعدود':f?1:0,'الفرق':f?0:-1,'الحالة':f?'مجرود':'ناقص'})}
+   rows.push({'الموقع':x.s,'النوع':'جهاز','الصنف':x.d,'السريال':x.n,'السريال الفعلي':rvx[x.n]||'','المتوقع':1,'المعدود':f?1:0,'الفرق':f?0:-1,'الحالة':f?(rvx[x.n]?'مجرود (سريال مُبدَّل)':'مجرود'):'ناقص'})}
   else{var c=S.acc[accKey(x)],st,df='';T.acc++;
    if(c==null){st='لم يُعدّ';T.accNone++}else{df=c-x.q;st=df===0?'مطابق':(df<0?'ناقص':'زائد');df===0?T.accOk++:T.accDiff++}
    rows.push({'الموقع':x.s,'النوع':'إكسسوار','الصنف':x.d,'السريال':'','المتوقع':x.q,'المعدود':c==null?'':c,'الفرق':df,'الحالة':st})}});
  var ex=Object.keys(S.extra);
  ex.forEach(function(s){rows.push({'الموقع':'','النوع':'جهاز','الصنف':(S.extra[s].name||'غير موجود في ملف المخزون - بدون اسم'),'السريال':s,'المتوقع':0,'المعدود':1,'الفرق':1,'الحالة':'زائد'})});
  var d=new Date(),ds=d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2);
- var sm=[['الملف المستورد',D.file],['الموقع',$('sub').value||'كل المواقع'],['تاريخ الجرد',ds],['',''],['الأجهزة المتوقعة',T.dev],['الأجهزة المجرودة',T.found],['الأجهزة الناقصة',T.miss],['سيريال زائد',ex.length],['',''],['أصناف الإكسسوارات',T.acc],['مطابقة',T.accOk],['بها فرق',T.accDiff],['لم تُعدّ',T.accNone]];
+ var sm=[['الملف المستورد',D.file],['الموقع',$('sub').value||'كل المواقع'],['تاريخ الجرد',ds],['',''],['الأجهزة المتوقعة',T.dev],['الأجهزة المجرودة',T.found],['الأجهزة الناقصة',T.miss],['سيريال زائد',ex.length],['سيريال مُبدَّل (بديل لسريال آخر)',Object.keys(S.swap||{}).length],['',''],['أصناف الإكسسوارات',T.acc],['مطابقة',T.accOk],['بها فرق',T.accDiff],['لم تُعدّ',T.accNone]];
  var wb=XLSX.utils.book_new(),w1=XLSX.utils.aoa_to_sheet(sm),w2=XLSX.utils.json_to_sheet(rows.length?rows:[{'—':'لا يوجد'}]);
  w1['!cols']=[{wch:26},{wch:36}];w2['!cols']=[{wch:14},{wch:10},{wch:42},{wch:24},{wch:10},{wch:10},{wch:8},{wch:12}];
  var bad=rows.filter(function(r){return r['الحالة']!=='مجرود'&&r['الحالة']!=='مطابق'}),w3=XLSX.utils.json_to_sheet(bad.length?bad:[{'—':'لا يوجد'}]);w3['!cols']=w2['!cols'];
@@ -238,11 +238,21 @@ $('cb').onclick=function(){cam.on?camStop():camStart()};function exportFinal(){
  wb.Workbook={Views:[{RTL:true}]};
  XLSX.writeFile(wb,'inventory-final-'+ds+'.xlsx')}
 $('eb').onclick=exportFinal;
-function renderX(){var ks=Object.keys(S.extra);$('xcard').classList.toggle('hide',!ks.length);
+function renderX_old(){var ks=Object.keys(S.extra);$('xcard').classList.toggle('hide',!ks.length);
  $('xtra').innerHTML=ks.map(function(s){var nm=(S.extra[s]||{}).name||'';return '<div class="row" style="margin-top:6px"><span class="ltr" style="min-width:130px">'+esc(s)+'</span><input data-s="'+esc(s)+'" value="'+esc(nm)+'" placeholder="اسم الجهاز" style="flex:1;min-width:140px;'+(nm?'':'border-color:var(--bad)')+'"><button data-del="'+esc(s)+'">✕</button></div>'}).join('')}
 $('xtra').addEventListener('input',function(e){var i=e.target,s=i.getAttribute('data-s');if(s&&S.extra[s]){S.extra[s].name=i.value;i.style.borderColor=i.value?'':'var(--bad)';save()}});
 $('fin').onchange=function(){S.fin=this.checked;save();render()};
 $('t4').onclick=function(){tab(4)};
+function renderX(){var ks=Object.keys(S.extra),sw=Object.keys(S.swap||{});$('xcard').classList.toggle('hide',!ks.length&&!sw.length);
+ var miss=D.items.filter(function(x){return x.n&&!isEx(x)&&!S.dev[x.n]}).sort(function(a,b){return a.d<b.d?-1:a.d>b.d?1:0});
+ var opts='<option value="">بديل لسريال آخر في النظام؟ اختر هنا...</option>'+miss.map(function(x){return'<option value="'+esc(x.n)+'">'+esc(x.d)+' — '+esc(x.n)+'</option>'}).join('');
+ var h=ks.map(function(s){var nm=(S.extra[s]||{}).name||'';return'<div class="row" style="margin-top:8px"><span class="ltr" style="min-width:130px">'+esc(s)+'</span><input data-s="'+esc(s)+'" value="'+esc(nm)+'" placeholder="اسم الجهاز" style="flex:1;min-width:140px;'+(nm?'':'border-color:var(--bad)')+'"><button data-del="'+esc(s)+'">✕</button><select data-sw="'+esc(s)+'" style="flex:1 1 100%;min-width:0">'+opts+'</select></div>'}).join('');
+ if(sw.length)h+='<div class="mu" style="margin-top:12px"><b>سيريالات مُبدَّلة</b> (الجهاز موجود بسريال آخر)</div>'+sw.map(function(a){var sy=S.swap[a],it=D.items.filter(function(x){return x.n===sy})[0]||{};return'<div class="row" style="margin-top:6px"><span class="ltr">'+esc(a)+' ⇄ '+esc(sy)+'</span><span class="mu">'+esc(it.d||'')+'</span><button data-us="'+esc(a)+'">✕ إلغاء</button></div>'}).join('');
+ $('xtra').innerHTML=h}
+function swapSer(a,sy){S.swap=S.swap||{};S.swap[a]=sy;S.dev[sy]=Date.now();delete S.extra[a];save();$('smsg').innerHTML='<div class="msg ok">✔ تم ربط '+esc(a)+' كبديل عن '+esc(sy)+'</div>';render()}
+function unswap(a){var sy=S.swap[a];delete S.swap[a];delete S.dev[sy];S.extra[a]={t:Date.now(),name:''};save();render()}
+$('xtra').addEventListener('change',function(e){var t=e.target,a=t.tagName==='SELECT'&&t.getAttribute('data-sw');if(a&&t.value){var o=t.options[t.selectedIndex].text;if(confirm('اعتبار السريال '+a+' بديلاً عن:\n'+o+'؟'))swapSer(a,t.value);else t.value=''}});
+$('xtra').addEventListener('click',function(e){var b=e.target.closest('button'),a=b&&b.getAttribute('data-us');if(a)unswap(a)});
 $('ex').addEventListener('click',function(e){var b=e.target.closest('button');if(!b)return;S.rest=S.rest||{};var r=b.getAttribute('data-r'),x=b.getAttribute('data-x');if(r)S.rest[r]=1;if(x)delete S.rest[x];save();init()});
 function hist(t,s){S.h=S.h||[];S.h.push({t:t,s:s});if(S.h.length>300)S.h.shift()}
 function undo(){var m='';while(S.h&&S.h.length){var e=S.h.pop();
@@ -251,7 +261,7 @@ function undo(){var m='';while(S.h&&S.h.length){var e=S.h.pop();
  $('smsg').innerHTML=m?'<div class="msg warn">↩ '+esc(m)+'</div>':'<div class="msg warn">لا يوجد شيء للتراجع عنه.</div>';save();render();$('ser').focus()}
 $('ub').onclick=undo;
 $('xtra').addEventListener('click',function(e){var b=e.target.closest('button'),s=b&&b.getAttribute('data-del');if(s){delete S.extra[s];save();render()}});
-$('dev').addEventListener('click',function(e){var b=e.target.closest('button'),s=b&&b.getAttribute('data-un');if(s&&confirm('إلغاء جرد هذا السريال؟\n'+s)){delete S.dev[s];save();render()}});$('rb').onclick=reset;
+$('dev').addEventListener('click',function(e){var b=e.target.closest('button'),s=b&&b.getAttribute('data-un');if(s&&confirm('إلغاء جرد هذا السريال؟\n'+s)){var a=null;Object.keys(S.swap||{}).forEach(function(k){if(S.swap[k]===s)a=k});if(a)unswap(a);else{delete S.dev[s];save();render()}}});$('rb').onclick=reset;
 load();init();
 </script>
 </body>
