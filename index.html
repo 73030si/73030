@@ -57,7 +57,7 @@ th,td{padding:7px 8px;border-bottom:1px solid var(--bd);text-align:start;vertica
 
   <div id="p1">
     <div class="card">
-      <div class="row"><input id="ser" class="big" placeholder="امسح أو اكتب السريال ثم Enter" autocomplete="off" inputmode="text"><button class="p" id="sb">تسجيل</button><button id="cb">📷 كاميرا</button><button id="ub">↩ تراجع</button></div><div id="cw" class="hide" style="margin-top:8px"><video id="cv" playsinline muted style="width:100%;max-height:240px;border-radius:8px;background:#000"></video></div>
+      <div class="row"><input id="ser" class="big" placeholder="امسح أو اكتب السريال ثم Enter" autocomplete="off" inputmode="text"><button class="p" id="sb">تسجيل</button><button id="cb">📷 كاميرا</button><button id="ub">↩ تراجع</button></div><div id="cw" class="hide" style="margin-top:8px"><video id="cv" playsinline muted style="width:100%;max-height:240px;border-radius:8px;background:#000"></video><div id="cconf" class="hide" style="margin-top:8px"><div class="mu">القيمة التي تمت قراءتها (يمكن تعديلها):</div><input id="cval" class="big" style="width:100%;margin-top:4px" autocomplete="off"><div id="cinfo" style="margin:6px 0;font-weight:600"></div><div class="row"><button class="p" id="cok" style="flex:1">✔ صحيح</button><button id="cre" style="flex:1">↻ إعادة المسح</button></div></div></div>
       <div id="smsg"></div>
     </div>
     <div class="card hide" id="xcard"><b>سيريالات زائدة (غير موجودة في الملف)</b><div class="mu">اكتب اسم الجهاز ليُسجَّل في التقرير</div><div id="xtra"></div></div>
@@ -202,21 +202,33 @@ $('ser').addEventListener('input',function(e){var n=Date.now(),L=this.value.leng
  if(e.inputType==='insertFromPaste'&&L>=4){scan();return}
  if(L<=1)fast=true;else if(n-lastT>80)fast=false;lastT=n;
  if(fast&&L>=5)tm=setTimeout(function(){scan()},150)});
-var cam={on:false,stream:null,det:null,rd:null,last:'',lt:0};
+var cam={on:false,stream:null,det:null,rd:null,last:'',lt:0,hold:false};
 function camMsg(t){$('smsg').innerHTML='<div class="msg bad">'+t+'</div>'}
-function camHit(code){var n=Date.now();if(code===cam.last&&n-cam.lt<2500)return;cam.last=code;cam.lt=n;if(navigator.vibrate)navigator.vibrate(60);scan(code)}
-function camLoop(){if(!cam.on||!cam.det)return;cam.det.detect($('cv')).then(function(a){if(a.length)camHit(a[0].rawValue)}).catch(function(){}).then(function(){setTimeout(camLoop,200)})}
-function camStop(){cam.on=false;if(cam.rd){try{cam.rd.reset()}catch(e){}cam.rd=null}if(cam.stream){cam.stream.getTracks().forEach(function(t){t.stop()});cam.stream=null}$('cv').srcObject=null;$('cw').classList.add('hide');$('cb').textContent='📷 كاميرا'}
+function camPreview(raw){var v=clean(raw).toUpperCase(),m=D&&D.items.filter(function(x){return x.n===v})[0];if(!m&&D&&v.length>1&&v.charAt(0)==='S')m=D.items.filter(function(x){return x.n===v.slice(1)})[0];
+ if(!v)return'';if(m)return'<span class="good">✔ موجود: '+esc(m.d)+'</span>';if(S.extra[v]||(S.swap&&S.swap[v]))return'<span style="color:var(--warn)">مُسجَّل مسبقاً</span>';return'<span class="badc">⚠ غير موجود في الملف (سيُعدّ زائداً)</span>'}
+function camExtract(raw){var v=clean(raw).toUpperCase();if(!D||!v)return raw;var has=function(s){return D.items.some(function(x){return x.n===s})};if(has(v)||(v.length>1&&v.charAt(0)==='S'&&has(v.slice(1))))return raw;var t=v.split(/[^A-Z0-9]+/).filter(function(s){return s.length>=5});for(var i=0;i<t.length;i++){if(has(t[i])||(t[i].charAt(0)==='S'&&has(t[i].slice(1))))return t[i]}return raw}
+function camHit(code){if(cam.hold)return;var n=Date.now();code=camExtract(String(code||'').trim());if(!code||(code===cam.last&&n-cam.lt<1500))return;cam.hold=true;cam.last=code;cam.lt=n;if(navigator.vibrate)navigator.vibrate(60);
+ $('cval').value=code;$('cinfo').innerHTML=camPreview(code);$('cconf').classList.remove('hide');try{$('cv').pause()}catch(e){}}
+function camRelease(){cam.hold=false;cam.lt=Date.now();$('cconf').classList.add('hide');try{var pr=$('cv').play();if(pr&&pr.catch)pr.catch(function(){})}catch(e){}}
+function camLoop(){if(!cam.on||!cam.det)return;if(cam.hold){setTimeout(camLoop,200);return}cam.det.detect($('cv')).then(function(a){if(a.length)camHit(a[0].rawValue)}).catch(function(){}).then(function(){setTimeout(camLoop,200)})}
+function camStop(){cam.on=false;cam.hold=false;$('cconf').classList.add('hide');if(cam.rd){try{cam.rd.reset()}catch(e){}cam.rd=null}if(cam.stream){cam.stream.getTracks().forEach(function(t){t.stop()});cam.stream=null}$('cv').srcObject=null;$('cw').classList.add('hide');$('cb').textContent='📷 كاميرا'}
 function camStart(){
  if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){camMsg('المتصفح لا يسمح بالكاميرا هنا. افتح الموقع في Chrome أو Safari مباشرة.');return}
- navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'}},audio:false}).then(function(st){
+ navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'},width:{ideal:1280},height:{ideal:720}},audio:false}).then(function(st){
   cam.stream=st;var v=$('cv');v.srcObject=st;$('cw').classList.remove('hide');cam.on=true;$('cb').textContent='⏹ إيقاف الكاميرا';
   return v.play().then(function(){
-   if('BarcodeDetector' in window){cam.det=new BarcodeDetector();camLoop()}
-   else if(window.ZXing){cam.rd=new ZXing.BrowserMultiFormatReader();cam.rd.decodeFromVideoElement(v,function(res){if(res)camHit(res.getText())})}
+   var want=['qr_code','data_matrix','code_128','code_39','code_93','codabar','ean_13','ean_8','itf','upc_a','upc_e','pdf417','aztec'];
+   var useZ=function(){var Z=window.ZXing,BF=Z.BarcodeFormat,h=new Map();h.set(Z.DecodeHintType.POSSIBLE_FORMATS,[BF.QR_CODE,BF.DATA_MATRIX,BF.CODE_128,BF.CODE_39,BF.CODE_93,BF.CODABAR,BF.EAN_13,BF.EAN_8,BF.ITF,BF.UPC_A,BF.UPC_E,BF.PDF_417,BF.AZTEC]);h.set(Z.DecodeHintType.TRY_HARDER,true);cam.rd=new Z.BrowserMultiFormatReader(h,250);cam.rd.decodeFromVideoElement(v,function(res){if(res)camHit(res.getText())})};
+   if('BarcodeDetector' in window){
+    (BarcodeDetector.getSupportedFormats?BarcodeDetector.getSupportedFormats():Promise.resolve(want)).then(function(sup){var f=want.filter(function(x){return sup.indexOf(x)>=0});if(f.indexOf('qr_code')<0&&window.ZXing){useZ();return}cam.det=new BarcodeDetector(f.length?{formats:f}:undefined);camLoop()}).catch(function(){cam.det=new BarcodeDetector();camLoop()})}
+   else if(window.ZXing){useZ()}
    else{camStop();camMsg('مسح الباركود بالكاميرا غير مدعوم في هذا المتصفح.')}})
  }).catch(function(e){camStop();camMsg('تعذّر فتح الكاميرا: '+esc(e.message||e.name)+'. اسمح للموقع باستخدام الكاميرا.')})}
-$('cb').onclick=function(){cam.on?camStop():camStart()};function exportFinal(){
+$('cb').onclick=function(){cam.on?camStop():camStart()};
+$('cok').onclick=function(){var val=$('cval').value;camRelease();scan(val)};
+$('cre').onclick=function(){camRelease()};
+$('cval').addEventListener('input',function(){$('cinfo').innerHTML=camPreview(this.value)});
+$('cval').addEventListener('keydown',function(e){if(e.key==='Enter'){e.preventDefault();$('cok').click()}});function exportFinal(){
  if(typeof XLSX==='undefined'){alert('مكتبة Excel لم تتحمّل. تحتاج إنترنت للتصدير.');return}
  var rvx={};Object.keys(S.swap||{}).forEach(function(a){rvx[S.swap[a]]=a});var it=sel(),rows=[],T={dev:0,found:0,miss:0,acc:0,accOk:0,accDiff:0,accNone:0};
  it.forEach(function(x){
