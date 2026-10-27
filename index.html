@@ -339,11 +339,16 @@ $('sybox').addEventListener('click',function(e){var b=e.target.closest('button')
 $('sybox').addEventListener('keydown',function(e){if(e.key==='Enter'&&e.target.id==='sycode')syLogin()});
 window.addEventListener('focus',function(){if(SY.on&&!SID&&!$('home').classList.contains('hide'))syAll().then(function(ch){if(ch)renderHome()})});
 function dl(name,text){var b=new Blob([text],{type:'application/json'}),a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=name;document.body.appendChild(a);a.click();setTimeout(function(){URL.revokeObjectURL(a.href);a.remove()},1500)}
-function backupAll(){return flush().then(function(){return kvAll('meta')}).then(function(ms){
+function backupAll(mode){return flush().then(function(){return kvAll('meta')}).then(function(ms){
  return Promise.all(ms.map(function(m){return Promise.all([kvGet('data',m.id),kvGet('state',m.id)]).then(function(r){return{meta:m,data:r[0],state:r[1]}})})).then(function(arr){
   return kvGet('state','_prefs').then(function(pf){var d=new Date();
-   dl('inventory-backup-'+d.getFullYear()+'-'+pad2(d.getMonth()+1)+'-'+pad2(d.getDate())+'.json',JSON.stringify({app:'stk-inv',v:2,exported:Date.now(),prefs:pf,sessions:arr}));
-   $('bmsg').innerHTML='<div class="msg ok">✔ تم تصدير نسخة احتياطية فيها '+arr.length+' جرد.</div>'})})})}
+   var nm='inventory-backup-'+d.getFullYear()+'-'+pad2(d.getMonth()+1)+'-'+pad2(d.getDate())+'.json',tx=JSON.stringify({app:'stk-inv',v:2,exported:Date.now(),prefs:pf,sessions:arr});
+   var ok=function(t){$('bmsg').innerHTML='<div class="msg ok">'+t+'</div>'};
+   if(mode==='share'){var f=null;try{f=new File([tx],nm,{type:'application/json'})}catch(e){}
+    if(f&&navigator.share&&navigator.canShare&&navigator.canShare({files:[f]}))
+     return navigator.share({files:[f],title:'نسخة احتياطية - جرد المخزون'}).then(function(){ok('✔ تمت مشاركة النسخة الاحتياطية ('+arr.length+' جرد).')}).catch(function(e){if(e&&e.name==='AbortError'){$('bmsg').innerHTML='';return}dl(nm,tx);ok('تعذّرت المشاركة، فحُفظت النسخة كملف ('+arr.length+' جرد).')});
+    dl(nm,tx);ok('هذا الجهاز أو المتصفح لا يدعم المشاركة، فحُفظت النسخة كملف ('+arr.length+' جرد). يمكنك إرسال الملف يدوياً.');return}
+   dl(nm,tx);ok('✔ تم حفظ نسخة احتياطية فيها '+arr.length+' جرد.')})})})}
 function restoreText(text){return KVR.then(function(){
  var o=JSON.parse(text);
  if(!o||o.app!=='stk-inv'||!Array.isArray(o.sessions))throw new Error('هذا ليس ملف نسخة احتياطية صالحاً.');
@@ -614,7 +619,8 @@ $('home').addEventListener('click',function(e){var b=e.target.closest('button');
  if(rp)openSession(rp).then(function(){if(SID)tab(3)});
  else if(o)openSession(o);
  else if(d&&confirm('حذف هذا الجرد نهائياً من هذا الجهاز؟'))Promise.all([kvDel('data',d),kvDel('state',d),kvDel('meta',d)]).then(function(){delete FC[d];fsSchedule();if(SY.on)syApi('/api/s/'+encodeURIComponent(d),'DELETE').catch(function(){});return renderHome()})});
-$('bk').onclick=function(){backupAll()};
+$('bk').onclick=function(){$('bmsg').innerHTML='<div class="msg warn">كيف تريد النسخة الاحتياطية؟<div class="row" style="margin-top:8px"><button class="p" data-bkm="save">💾 حفظ</button><button data-bkm="share">📤 مشاركة</button><button data-bkm="no">إلغاء</button></div></div>'};
+$('bmsg').addEventListener('click',function(e){var b=e.target.closest('button'),m=b&&b.getAttribute('data-bkm');if(!m)return;if(m==='no')$('bmsg').innerHTML='';else backupAll(m)});
 $('rf').onchange=function(e){var f=e.target.files[0];if(f)restoreAll(f);$('rf').value=''};
 fsInit();syInit();
 KVR.then(migrate).then(renderHome).then(function(){try{if(navigator.storage&&navigator.storage.persist)navigator.storage.persist().then(function(p){PERSIST=p;stInfo()})}catch(e){}});
