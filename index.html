@@ -99,6 +99,8 @@ table.xl th{position:sticky;top:0;background:var(--bg);color:var(--tx);font-size
 table.xl td.rn,table.xl th.rn{background:var(--bg);color:var(--mu);text-align:center;width:1%;position:sticky;inset-inline-start:0}
 table.xl td.num{text-align:center}
 .xlnote{color:var(--mu);font-size:12px;margin-top:6px}
+tr.ryel td{background:color-mix(in srgb,#f2c200 42%,transparent)}
+.yl{font-weight:700;background:color-mix(in srgb,#f2c200 55%,transparent);color:var(--tx);border-radius:6px;padding:2px 6px;margin:2px 0}
 @media (prefers-reduced-motion:reduce){.seg i{transition:none}}
 </style>
 </head>
@@ -411,7 +413,7 @@ function scan(val){
   if(!m&&v.length>1&&v.charAt(0)==='S'){v=v.slice(1);m=D.items.filter(function(x){return x.n===v})[0]}
   if(!m){if(S.swap&&S.swap[v])h='<div class="msg warn">سريال بديل مُسجَّل مسبقاً: '+esc(v)+'</div>';else if(S.extra[v])h='<div class="msg warn">سريال زائد مُسجَّل مسبقاً: '+esc(v)+'</div>';else{S.extra[v]={t:Date.now(),name:''};hist('e',v);h='<div class="msg bad">⚠ السريال '+esc(v)+' غير موجود في الملف (زائد). اكتب اسم الجهاز في الخانة الحمراء أدناه.</div>'}}
   else if(isEx(m)){h='<div class="msg warn">هذا المنتج ضمن "ليست بحاجة للجرد" ولم يُسجَّل: '+esc(m.d)+'</div>'}else if(S.dev[v]){h='<div class="msg warn">مُسجَّل مسبقاً: '+esc(m.d)+'</div>'}
-  else{S.dev[v]=Date.now();if(S.nf)delete S.nf[v];hist('d',v);h='<div class="msg ok">✔ '+esc(m.d)+' <span class="mu">('+esc(m.s)+')</span></div>';
+  else{S.dev[v]=Date.now();if(S.nf)delete S.nf[v];if(S.sold)delete S.sold[v];hist('d',v);h='<div class="msg ok">✔ '+esc(m.d)+' <span class="mu">('+esc(m.s)+')</span></div>';
     var sb=$('sub').value;if(sb&&m.s!==sb)h+='<div class="msg warn">هذا الجهاز مسجّل في موقع آخر: '+esc(m.s)+'</div>'}
   $('smsg').innerHTML=h;save();render();$('ser').focus()}
 $('ser').addEventListener('keydown',function(e){if(e.key==='Enter')scan()});
@@ -422,13 +424,13 @@ function render(keep){
   var found=dv.filter(function(x){return S.dev[x.n]}).length;
   var aE=0,aC=0;ac.forEach(function(x){aE+=x.q;aC+=Math.min(S.acc[accKey(x)]||0,1e9)});
   var pct=dv.length?Math.round(found/dv.length*100):0;
-  $('stats').innerHTML=[['الأجهزة المجرودة',found+' / '+dv.length],['الأجهزة الناقصة',dv.length-found],['عجز مؤكد (غير متوفر)',dv.filter(function(x){return S.nf&&S.nf[x.n]&&!S.dev[x.n]}).length],['سريال زائد',Object.keys(S.extra).length],['الإكسسوارات (عدّ / متوقع)',aC+' / '+aE]].map(function(a){return'<div class="st"><b>'+a[1]+'</b><span>'+a[0]+'</span></div>'}).join('')+'<div class="st" style="grid-column:1/-1"><span>تقدم جرد الأجهزة '+pct+'%</span><div class="bar"><i style="width:'+pct+'%"></i></div></div>';
+  $('stats').innerHTML=[['الأجهزة المجرودة',found+' / '+dv.length],['الأجهزة الناقصة',dv.length-found],['عجز مؤكد (غير متوفر)',dv.filter(function(x){return S.nf&&S.nf[x.n]&&!S.dev[x.n]}).length],['مباع',dv.filter(function(x){return S.sold&&S.sold[x.n]&&!S.dev[x.n]}).length],['سريال زائد',Object.keys(S.extra).length],['الإكسسوارات (عدّ / متوقع)',aC+' / '+aE]].map(function(a){return'<div class="st"><b>'+a[1]+'</b><span>'+a[0]+'</span></div>'}).join('')+'<div class="st" style="grid-column:1/-1"><span>تقدم جرد الأجهزة '+pct+'%</span><div class="bar"><i style="width:'+pct+'%"></i></div></div>';
   if(curTab===1){
     var g={};dv.forEach(function(x){var k=x.s+'|'+x.d;(g[k]=g[k]||{s:x.s,d:x.d,a:[]}).a.push(x)});
     var ks=Object.keys(g).sort(function(a,b){return cmpName(g[a].d,g[b].d)||cmpName(g[a].s,g[b].s)});
     var h='<table><tr><th>الجهاز</th><th>الموقع</th><th>مجرود / متوقع</th></tr>';
     ks.forEach(function(k){var G=g[k],c=G.a.filter(function(x){return S.dev[x.n]}).length,done=c===G.a.length;
-      var sws=G.a.filter(function(x){return rv[x.n]});var nfc=G.a.filter(function(x){return S.nf&&S.nf[x.n]&&!S.dev[x.n]}).length;h+='<tr'+(sws.length?' class="rwarn"':(done?' class="rdone"':((S.fin||c>0||nfc)?' class="rbad"':'')))+'><td><details data-k="'+esc(k)+'"'+(OPEN[k]?' open':'')+'><summary>'+esc(G.d)+'</summary><div class="ltr mu">'+G.a.map(function(x){return S.dev[x.n]?'<div'+(rv[x.n]?' class="badc" style="font-weight:700;background:color-mix(in srgb,var(--bad) 22%,transparent);border-radius:6px;padding:2px 6px;margin:2px 0"':'')+'>✔ '+esc(x.n)+(rv[x.n]?' <span>(الفعلي: '+esc(rv[x.n])+')</span>':'')+' <button data-un="'+esc(x.n)+'" style="padding:1px 8px;color:var(--bad)">✕ إلغاء</button></div>':(S.nf&&S.nf[x.n]?'<div class="badc" style="font-weight:700;background:color-mix(in srgb,var(--bad) 22%,transparent);border-radius:6px;padding:2px 6px;margin:2px 0">✖ '+esc(x.n)+' <span>(غير متوفر — عجز)</span> <button data-nn="'+esc(x.n)+'" style="padding:1px 8px">↩ إلغاء</button></div>':'<div>✘ '+esc(x.n)+' <button data-ck="'+esc(x.n)+'" style="padding:1px 8px;color:var(--ok)">✔ متوفر</button> <button data-nf="'+esc(x.n)+'" style="padding:1px 8px;color:var(--bad)">✖ غير متوفر</button></div>')}).join('')+'</div></details>'+(sws.length?'<div style="color:var(--warn);font-size:12px;margin-top:4px">⚠ سريال مُبدَّل — '+sws.map(function(x){return'الفعلي: <span class="ltr badc" style="font-weight:700">'+esc(rv[x.n])+'</span> ⇄ النظام: <span class="ltr badc" style="font-weight:700">'+esc(x.n)+'</span>'}).join(' | ')+'</div>':'')+'</td><td class="mu">'+esc(G.s)+'</td><td class="'+(done&&!sws.length?'good':'')+'">'+c+' / '+G.a.length+'</td></tr>'});
+      var sws=G.a.filter(function(x){return rv[x.n]});var nfc=G.a.filter(function(x){return S.nf&&S.nf[x.n]&&!S.dev[x.n]}).length,sdc=G.a.filter(function(x){return S.sold&&S.sold[x.n]&&!S.dev[x.n]}).length;h+='<tr'+(sws.length?' class="rwarn"':(nfc?' class="rbad"':(done?' class="rdone"':((sdc&&c+sdc===G.a.length)?' class="ryel"':((S.fin||c>0||sdc)?' class="rbad"':'')))))+'><td><details data-k="'+esc(k)+'"'+(OPEN[k]?' open':'')+'><summary>'+esc(G.d)+'</summary><div class="ltr mu">'+G.a.map(function(x){return S.dev[x.n]?'<div'+(rv[x.n]?' class="badc" style="font-weight:700;background:color-mix(in srgb,var(--bad) 22%,transparent);border-radius:6px;padding:2px 6px;margin:2px 0"':'')+'>✔ '+esc(x.n)+(rv[x.n]?' <span>(الفعلي: '+esc(rv[x.n])+')</span>':'')+' <button data-un="'+esc(x.n)+'" style="padding:1px 8px;color:var(--bad)">✕ إلغاء</button></div>':(S.sold&&S.sold[x.n]?'<div class="yl">🏷 '+esc(x.n)+' <span>(مباع — أمر بيع: '+esc(S.sold[x.n].so)+')</span> <button data-se="'+esc(x.n)+'" style="padding:1px 8px">✎</button> <button data-sn="'+esc(x.n)+'" style="padding:1px 8px">↩ إلغاء</button></div>':S.nf&&S.nf[x.n]?'<div class="badc" style="font-weight:700;background:color-mix(in srgb,var(--bad) 22%,transparent);border-radius:6px;padding:2px 6px;margin:2px 0">✖ '+esc(x.n)+' <span>(غير متوفر — عجز)</span> <button data-nn="'+esc(x.n)+'" style="padding:1px 8px">↩ إلغاء</button></div>':'<div>✘ '+esc(x.n)+' <button data-ck="'+esc(x.n)+'" style="padding:1px 8px;color:var(--ok)">✔ متوفر</button> <button data-nf="'+esc(x.n)+'" style="padding:1px 8px;color:var(--bad)">✖ غير متوفر</button> <button data-sd="'+esc(x.n)+'" style="padding:1px 8px;color:var(--warn)">🏷 مباع</button></div>')}).join('')+'</div></details>'+(sws.length?'<div style="color:var(--warn);font-size:12px;margin-top:4px">⚠ سريال مُبدَّل — '+sws.map(function(x){return'الفعلي: <span class="ltr badc" style="font-weight:700">'+esc(rv[x.n])+'</span> ⇄ النظام: <span class="ltr badc" style="font-weight:700">'+esc(x.n)+'</span>'}).join(' | ')+'</div>':'')+'</td><td class="mu">'+esc(G.s)+'</td><td class="'+(done&&!sws.length?'good':'')+'">'+c+' / '+G.a.length+'</td></tr>'});
     $('dev').innerHTML=h+'</table>';
   }
   if(curTab===2&&!keep||curTab===2&&keep){
@@ -494,17 +496,17 @@ $('cok').onclick=function(){var val=$('cval').value;camRelease();scan(val)};
 $('cre').onclick=function(){camRelease()};
 $('cval').addEventListener('input',function(){$('cinfo').innerHTML=camPreview(this.value)});
 $('cval').addEventListener('keydown',function(e){if(e.key==='Enter'){e.preventDefault();$('cok').click()}});function buildReport(){
- var rvx={};Object.keys(S.swap||{}).forEach(function(a){rvx[S.swap[a]]=a});var it=sel(),rows=[],T={dev:0,found:0,miss:0,nf:0,acc:0,accOk:0,accDiff:0,accNone:0};
+ var rvx={};Object.keys(S.swap||{}).forEach(function(a){rvx[S.swap[a]]=a});var it=sel(),rows=[],T={dev:0,found:0,miss:0,nf:0,sold:0,acc:0,accOk:0,accDiff:0,accNone:0};
  it.forEach(function(x){
   if(x.n){var f=!!S.dev[x.n];T.dev++;f?T.found++:T.miss++;
-   rows.push({'الموقع':x.s,'النوع':'جهاز','الصنف':x.d,'السريال':x.n,'السريال الفعلي':rvx[x.n]||'','المتوقع':1,'المعدود':f?1:0,'الفرق':f?0:-1,'الحالة':f?(rvx[x.n]?'مجرود (سريال مُبدَّل)':'مجرود'):(S.nf&&S.nf[x.n]?'عجز (غير متوفر)':'ناقص')});if(!f&&S.nf&&S.nf[x.n])T.nf++}
+   rows.push({'الموقع':x.s,'النوع':'جهاز','الصنف':x.d,'السريال':x.n,'السريال الفعلي':rvx[x.n]||'','المتوقع':1,'المعدود':f?1:0,'الفرق':f?0:-1,'رقم أمر البيع':(!f&&S.sold&&S.sold[x.n])?S.sold[x.n].so:'','الحالة':f?(rvx[x.n]?'مجرود (سريال مُبدَّل)':'مجرود'):((S.sold&&S.sold[x.n])?'مباع':(S.nf&&S.nf[x.n]?'عجز (غير متوفر)':'ناقص'))});if(!f&&S.sold&&S.sold[x.n])T.sold++;else if(!f&&S.nf&&S.nf[x.n])T.nf++}
   else{var c=S.acc[accKey(x)],st,df='';T.acc++;
    if(c==null){st='لم يُعدّ';T.accNone++}else{df=c-x.q;st=df===0?'مطابق':(df<0?'ناقص':'زائد');df===0?T.accOk++:T.accDiff++}
-   rows.push({'الموقع':x.s,'النوع':'إكسسوار','الصنف':x.d,'السريال':'','السريال الفعلي':'','المتوقع':x.q,'المعدود':c==null?'':c,'الفرق':df,'الحالة':st})}});
+   rows.push({'الموقع':x.s,'النوع':'إكسسوار','الصنف':x.d,'السريال':'','السريال الفعلي':'','المتوقع':x.q,'المعدود':c==null?'':c,'الفرق':df,'رقم أمر البيع':'','الحالة':st})}});
  var ex=Object.keys(S.extra);
- ex.forEach(function(s){rows.push({'الموقع':'','النوع':'جهاز','الصنف':(S.extra[s].name||'غير موجود في ملف المخزون - بدون اسم'),'السريال':s,'السريال الفعلي':'','المتوقع':0,'المعدود':1,'الفرق':1,'الحالة':'زائد'})});
+ ex.forEach(function(s){rows.push({'الموقع':'','النوع':'جهاز','الصنف':(S.extra[s].name||'غير موجود في ملف المخزون - بدون اسم'),'السريال':s,'السريال الفعلي':'','المتوقع':0,'المعدود':1,'الفرق':1,'رقم أمر البيع':'','الحالة':'زائد'})});
  var d=new Date(),ds=d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2);
- var sm=[['الملف المستورد',D.file],['الموقع',$('sub').value||'كل المواقع'],['تاريخ الجرد',ds],['',''],['الأجهزة المتوقعة',T.dev],['الأجهزة المجرودة',T.found],['الأجهزة الناقصة',T.miss],['عجز مؤكد (غير متوفر)',T.nf],['سيريال زائد',ex.length],['سيريال مُبدَّل (بديل لسريال آخر)',Object.keys(S.swap||{}).length],['',''],['أصناف الإكسسوارات',T.acc],['مطابقة',T.accOk],['بها فرق',T.accDiff],['لم تُعدّ',T.accNone]];
+ var sm=[['الملف المستورد',D.file],['الموقع',$('sub').value||'كل المواقع'],['تاريخ الجرد',ds],['',''],['الأجهزة المتوقعة',T.dev],['الأجهزة المجرودة',T.found],['الأجهزة الناقصة',T.miss],['عجز مؤكد (غير متوفر)',T.nf],['مباع',T.sold],['سيريال زائد',ex.length],['سيريال مُبدَّل (بديل لسريال آخر)',Object.keys(S.swap||{}).length],['',''],['أصناف الإكسسوارات',T.acc],['مطابقة',T.accOk],['بها فرق',T.accDiff],['لم تُعدّ',T.accNone]];
  var bad=rows.filter(function(r){return r['الحالة']!=='مجرود'&&r['الحالة']!=='مطابق'});
  var eg={};D.items.filter(isEx).forEach(function(x){var k=nz(x.d);(eg[k]=eg[k]||{'الصنف':x.d,'العدد':0})['العدد']+=x.q||1});
  var er=Object.keys(eg).map(function(k){return eg[k]});
@@ -513,15 +515,15 @@ function exportFinal(){
  if(typeof XLSX==='undefined'){alert('مكتبة Excel لم تتحمّل. تحتاج إنترنت للتصدير.');return}
  var R=buildReport(),rows=R.rows;
  var wb=XLSX.utils.book_new(),w1=XLSX.utils.aoa_to_sheet(R.sm),w2=XLSX.utils.json_to_sheet(rows.length?rows:[{'—':'لا يوجد'}]);
- w1['!cols']=[{wch:26},{wch:36}];w2['!cols']=[{wch:14},{wch:10},{wch:42},{wch:24},{wch:10},{wch:10},{wch:8},{wch:12}];
+ w1['!cols']=[{wch:26},{wch:36}];w2['!cols']=[{wch:14},{wch:10},{wch:42},{wch:24},{wch:24},{wch:10},{wch:10},{wch:8},{wch:16},{wch:22}];
  var w3=XLSX.utils.json_to_sheet(R.bad.length?R.bad:[{'—':'لا يوجد'}]);w3['!cols']=w2['!cols'];
  XLSX.utils.book_append_sheet(wb,w1,'الملخص');XLSX.utils.book_append_sheet(wb,w2,'الجرد النهائي');XLSX.utils.book_append_sheet(wb,w3,'الفروقات فقط');
  XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(R.er.length?R.er:[{'—':'لا يوجد'}]),'ليست بحاجة للجرد');
  wb.Workbook={Views:[{RTL:true}]};
  XLSX.writeFile(wb,'inventory-final-'+R.ds+'.xlsx')}
 var RS='final',RF='all',RQ='';
-var RCOLS=['الموقع','النوع','الصنف','السريال','السريال الفعلي','المتوقع','المعدود','الفرق','الحالة'];
-function rowCls(r){var s=r['الحالة'];if(s==='مجرود'||s==='مطابق')return'rdone';if(s==='ناقص'||s==='عجز (غير متوفر)')return'rbad';if(s==='زائد')return r['النوع']==='جهاز'?'rbad':'rwarn';if(s.indexOf('مُبدَّل')>=0)return'rwarn';return''}
+var RCOLS=['الموقع','النوع','الصنف','السريال','السريال الفعلي','المتوقع','المعدود','الفرق','رقم أمر البيع','الحالة'];
+function rowCls(r){var s=r['الحالة'];if(s==='مجرود'||s==='مطابق')return'rdone';if(s==='ناقص'||s==='عجز (غير متوفر)')return'rbad';if(s==='مباع')return'ryel';if(s==='زائد')return r['النوع']==='جهاز'?'rbad':'rwarn';if(s.indexOf('مُبدَّل')>=0)return'rwarn';return''}
 function renderReport(){
  var R=buildReport(),h='',foc=document.activeElement&&document.activeElement.id==='rq',pos=foc?document.activeElement.selectionStart:0;
  var tabs=[['final','الجرد النهائي'],['diff','الفروقات فقط ('+R.bad.length+')'],['ex','ليست بحاجة للجرد'],['sum','الملخص']];
@@ -556,7 +558,7 @@ function renderX(){var ks=Object.keys(S.extra),sw=Object.keys(S.swap||{});$('xca
  var h=ks.map(function(s){var nm=(S.extra[s]||{}).name||'';return'<div class="row" style="margin-top:8px"><span class="ltr" style="min-width:130px">'+esc(s)+'</span><input data-s="'+esc(s)+'" value="'+esc(nm)+'" placeholder="اسم الجهاز" style="flex:1;min-width:140px;'+(nm?'':'border-color:var(--bad)')+'"><button data-del="'+esc(s)+'">✕</button><select data-sw="'+esc(s)+'" style="flex:1 1 100%;min-width:0">'+opts+'</select></div>'}).join('');
  if(sw.length)h+='<div class="mu" style="margin-top:12px"><b>سيريالات مُبدَّلة</b> (الجهاز موجود بسريال آخر)</div>'+sw.map(function(a){var sy=S.swap[a],it=D.items.filter(function(x){return x.n===sy})[0]||{};return'<div class="row" style="margin-top:6px"><span class="ltr">'+esc(a)+' ⇄ '+esc(sy)+'</span><span class="mu">'+esc(it.d||'')+'</span><button data-us="'+esc(a)+'">✕ إلغاء</button></div>'}).join('');
  $('xtra').innerHTML=h}
-function swapSer(a,sy){S.swap=S.swap||{};S.swap[a]=sy;S.dev[sy]=Date.now();if(S.nf)delete S.nf[sy];delete S.extra[a];save();$('smsg').innerHTML='<div class="msg ok">✔ تم ربط '+esc(a)+' كبديل عن '+esc(sy)+'</div>';render()}
+function swapSer(a,sy){S.swap=S.swap||{};S.swap[a]=sy;S.dev[sy]=Date.now();if(S.nf)delete S.nf[sy];if(S.sold)delete S.sold[sy];delete S.extra[a];save();$('smsg').innerHTML='<div class="msg ok">✔ تم ربط '+esc(a)+' كبديل عن '+esc(sy)+'</div>';render()}
 function unswap(a){var sy=S.swap[a];delete S.swap[a];delete S.dev[sy];S.extra[a]={t:Date.now(),name:''};save();render()}
 $('xtra').addEventListener('change',function(e){var t=e.target,a=t.tagName==='SELECT'&&t.getAttribute('data-sw');if(a&&t.value){var o=t.options[t.selectedIndex].text;if(confirm('اعتبار السريال '+a+' بديلاً عن:\n'+o+'؟'))swapSer(a,t.value);else t.value=''}});
 $('xtra').addEventListener('click',function(e){var b=e.target.closest('button'),a=b&&b.getAttribute('data-us');if(a)unswap(a)});
@@ -564,6 +566,7 @@ $('ex').addEventListener('click',function(e){var b=e.target.closest('button');if
 function hist(t,s){S.h=S.h||[];S.h.push({t:t,s:s});if(S.h.length>300)S.h.shift()}
 function undo(){var m='';while(S.h&&S.h.length){var e=S.h.pop();
  if(e.t==='d'&&S.dev[e.s]){delete S.dev[e.s];m='تم التراجع عن جرد: '+e.s;break}
+ if(e.t==='s'&&S.sold&&S.sold[e.s]){delete S.sold[e.s];m='تم التراجع عن تعليم مباع: '+e.s;break}
  if(e.t==='n'&&S.nf&&S.nf[e.s]){delete S.nf[e.s];m='تم التراجع عن تعليم غير متوفر: '+e.s;break}
  if(e.t==='e'&&S.extra[e.s]){delete S.extra[e.s];m='تم التراجع عن السريال الزائد: '+e.s;break}}
  $('smsg').innerHTML=m?'<div class="msg warn">↩ '+esc(m)+'</div>':'<div class="msg warn">لا يوجد شيء للتراجع عنه.</div>';save();render();$('ser').focus()}
@@ -571,9 +574,13 @@ $('ub').onclick=undo;
 $('xtra').addEventListener('click',function(e){var b=e.target.closest('button'),s=b&&b.getAttribute('data-del');if(s){delete S.extra[s];save();render()}});
 $('dev').addEventListener('click',function(e){var b=e.target.closest('button'),s=b&&b.getAttribute('data-un');if(s&&confirm('إلغاء جرد هذا السريال؟\n'+s)){var a=null;Object.keys(S.swap||{}).forEach(function(k){if(S.swap[k]===s)a=k});if(a)unswap(a);else{delete S.dev[s];save();render()}}});var OPEN={};
 $('dev').addEventListener('toggle',function(e){var d=e.target,k=d.tagName==='DETAILS'&&d.getAttribute('data-k');if(k){if(d.open)OPEN[k]=1;else delete OPEN[k]}},true);
-$('dev').addEventListener('click',function(e){var b=e.target.closest('button'),s=b&&b.getAttribute('data-ck');if(s&&!S.dev[s]){S.dev[s]=Date.now();hist('d',s);var it=D.items.filter(function(x){return x.n===s})[0]||{};$('smsg').innerHTML='<div class="msg ok">✔ تم جرد '+esc(it.d||'')+' يدوياً: '+esc(s)+'</div>';save();render()}});
-$('dev').addEventListener('click',function(e){var b=e.target.closest('button'),n=b&&b.getAttribute('data-nf'),u=b&&b.getAttribute('data-nn');
- if(n&&!S.dev[n]){S.nf=S.nf||{};S.nf[n]=Date.now();hist('n',n);var it=D.items.filter(function(x){return x.n===n})[0]||{};$('smsg').innerHTML='<div class="msg bad">✖ غير متوفر (عجز): '+esc(it.d||'')+' — '+esc(n)+'</div>';save();render()}
+$('dev').addEventListener('click',function(e){var b=e.target.closest('button'),s=b&&b.getAttribute('data-ck');if(s&&!S.dev[s]){S.dev[s]=Date.now();if(S.nf)delete S.nf[s];if(S.sold)delete S.sold[s];hist('d',s);var it=D.items.filter(function(x){return x.n===s})[0]||{};$('smsg').innerHTML='<div class="msg ok">✔ تم جرد '+esc(it.d||'')+' يدوياً: '+esc(s)+'</div>';save();render()}});
+function askSO(s,old){var v=prompt('أدخل رقم أمر البيع للسريال '+s+':',old||'');if(v==null)return null;v=v.trim();if(!v){alert('رقم أمر البيع مطلوب.');return null}return v}
+$('dev').addEventListener('click',function(e){var b=e.target.closest('button'),n=b&&b.getAttribute('data-nf'),u=b&&b.getAttribute('data-nn'),sd=b&&b.getAttribute('data-sd'),se=b&&b.getAttribute('data-se'),sn=b&&b.getAttribute('data-sn');
+ if(sd&&!S.dev[sd]){var so=askSO(sd);if(so){S.sold=S.sold||{};S.sold[sd]={t:Date.now(),so:so};if(S.nf)delete S.nf[sd];hist('s',sd);var it0=D.items.filter(function(x){return x.n===sd})[0]||{};$('smsg').innerHTML='<div class="msg warn">🏷 مباع: '+esc(it0.d||'')+' — '+esc(sd)+' (أمر بيع '+esc(so)+')</div>';save();render()}}
+ else if(se&&S.sold&&S.sold[se]){var so2=askSO(se,S.sold[se].so);if(so2){S.sold[se].so=so2;save();render()}}
+ else if(sn&&S.sold){delete S.sold[sn];save();render()}
+ else if(n&&!S.dev[n]){S.nf=S.nf||{};S.nf[n]=Date.now();if(S.sold)delete S.sold[n];hist('n',n);var it=D.items.filter(function(x){return x.n===n})[0]||{};$('smsg').innerHTML='<div class="msg bad">✖ غير متوفر (عجز): '+esc(it.d||'')+' — '+esc(n)+'</div>';save();render()}
  else if(u&&S.nf){delete S.nf[u];save();render()}});
 $('rb').onclick=reset;
 $('hb').onclick=function(){showHome()};
