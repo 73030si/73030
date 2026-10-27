@@ -4,7 +4,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>جرد المخزون</title>
+<script src="xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="zxing.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@zxing/library@0.21.3/umd/index.min.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -82,6 +84,8 @@ body{font-family:"IBM Plex Sans Arabic",system-ui,-apple-system,"Segoe UI",Tahom
 .rs .r2{color:var(--mu);font-size:12px;overflow-wrap:anywhere}
 .rs .r3{display:flex;align-items:center;gap:10px;font-size:14px}.rs .r3 .seg{flex:1;height:9px}
 .rs .del{width:50px;border-radius:10px;font-size:18px;color:var(--bad)}
+.rs .rep{width:50px;border-radius:10px;font-size:18px}
+#lst h3{margin:14px 0 6px;font-size:14px;color:var(--mu);font-weight:600}
 .pill.on{background:color-mix(in srgb,var(--warn) 22%,transparent);color:var(--warn)}
 .pill.ok{background:color-mix(in srgb,var(--ok) 22%,transparent);color:var(--ok)}
 .tagc .pill.on,.tagc .pill.ok{background:#241d00;color:#f2c230}
@@ -98,6 +102,10 @@ table.xl th,table.xl td{border:1px solid var(--bd);padding:5px 9px;text-align:st
 table.xl th{position:sticky;top:0;background:var(--bg);color:var(--tx);font-size:12px;z-index:1}
 table.xl td.rn,table.xl th.rn{background:var(--bg);color:var(--mu);text-align:center;width:1%;position:sticky;inset-inline-start:0}
 table.xl td.num{text-align:center}
+.nt{width:100%;margin-top:6px;min-height:34px;resize:vertical;font:inherit;font-size:13px;padding:6px 8px;border:1px solid var(--bd);border-radius:6px;background:var(--bg);color:var(--tx)}
+.pend{background:color-mix(in srgb,var(--warn) 17%,transparent);border-inline-start:4px solid var(--warn);border-radius:6px;padding:3px 8px;margin:3px 0}
+.pb{display:inline-block;margin-inline-start:8px;padding:1px 9px;border-radius:99px;font-size:12px;font-weight:700;background:var(--warn);color:#fff;vertical-align:middle}
+.pb.dim{background:transparent;color:var(--mu);border:1px solid var(--bd);font-weight:500}
 .xlnote{color:var(--mu);font-size:12px;margin-top:6px}
 tr.ryel td{background:color-mix(in srgb,#f2c200 42%,transparent)}
 .yl{font-weight:700;background:color-mix(in srgb,#f2c200 55%,transparent);color:var(--tx);border-radius:6px;padding:2px 6px;margin:2px 0}
@@ -121,7 +129,7 @@ tr.ryel td{background:color-mix(in srgb,#f2c200 42%,transparent)}
     </details>
   </div>
 
-  <div id="listc" class="hide"><h2>الجرود المحفوظة</h2><div class="sl" id="lst"></div></div>
+  <div id="listc" class="hide"><h2>سجلات الجرد</h2><div class="sl" id="lst"></div></div>
 
   <div class="bkp">
     <b>النسخ الاحتياطي</b>
@@ -230,19 +238,23 @@ function pill(m){return m.status==='done'?'<span class="pill ok">منتهي '+fm
 function pc(a,b){return b?Math.round(a/b*100):0}
 function renderHome(){return KVR.then(function(){return kvAll('meta')}).then(function(list){
  list=list.filter(function(m){return m&&m.id}).sort(function(a,b){return b.updated-a.updated});
- var L=list[0],t;
+ var act=list.filter(function(m){return m.status!=='done'}),dn=list.filter(function(m){return m.status==='done'}).sort(function(x,y){return(y.finishedAt||y.updated)-(x.finishedAt||x.updated)}),L=act[0],t;
  if(L){t='<div class="tagc"><div>'+
   '<div class="tg-meta"><span>آخر جرد بتاريخ <b class="ltr">'+fmt(L.updated)+'</b></span>'+pill(L)+'</div>'+
   '<div class="big"><span class="n">'+L.devF+'</span><span class="of">من '+L.devT+' جهاز</span></div>'+
   '<div class="seg"><i data-w="'+pc(L.devF,L.devT)+'"></i></div>'+
   '<div class="tg-sub"><span>إكسسوارات: '+L.accC+' من '+L.accT+' صنف</span><span>سيريال زائد: '+L.extra+'</span></div>'+
   '<div class="tg-file ltr">'+esc(L.file)+'</div>'+(list.length<2?'<button class="tg-del" data-del="'+esc(L.id)+'">حذف هذا الجرد</button>':'')+'</div>'+
-  '<div class="stub"><div class="ask">هل تريد المتابعة من آخر جرد أم بدء جرد جديد؟</div><div class="btns"><button class="go" data-open="'+esc(L.id)+'">'+(L.status==='done'?'فتح آخر جرد':'متابعة آخر جرد')+'</button><label class="alt" for="f">جرد جديد</label></div></div></div>'}
+  '<div class="stub"><div class="ask">هل تريد المتابعة من آخر جرد أم بدء جرد جديد؟</div><div class="btns"><button class="go" data-open="'+esc(L.id)+'">متابعة آخر جرد</button><label class="alt" for="f">جرد جديد</label></div></div></div>'}
+ else if(dn.length){t='<div class="tagc"><div><div class="big2">لا يوجد جرد جارٍ</div><p class="lead">آخر جرد أُقفل بتاريخ <b class="ltr">'+fmt(dn[0].finishedAt||dn[0].updated)+'</b>. ابدأ جرداً جديداً، أو افتح أحد الجرود المنتهية من «سجلات الجرد» أدناه.</p></div><div class="stub"><div class="btns"><label class="go" for="f">جرد جديد</label></div></div></div>'}
  else{t='<div class="tagc"><div><div class="big2">جرد جديد</div><p class="lead">ارفع تقرير المخزون، وسيجهّز الموقع قوائم الأجهزة (بالسريال) والإكسسوارات (بالعدد).</p></div><div class="stub"><div class="btns"><label class="go" for="f">اختر ملف التقرير</label></div></div></div>'}
- $('hero').innerHTML=t;$('shot').open=!L;
+ $('hero').innerHTML=t;$('shot').open=!list.length;
  requestAnimationFrame(function(){requestAnimationFrame(function(){[].forEach.call(document.querySelectorAll('#hero .seg i'),function(i){i.style.width=i.getAttribute('data-w')+'%'})})});
- if(list.length>1){$('listc').classList.remove('hide');
-  $('lst').innerHTML=list.map(function(m,i){return'<div class="rs"><button class="open" data-open="'+esc(m.id)+'"><div class="r1"><span class="ltr">'+fmt(m.updated)+'</span>'+pill(m)+'</div><div class="r2 ltr">'+esc(m.file)+'</div><div class="r3"><div class="seg"><i style="width:'+pc(m.devF,m.devT)+'%"></i></div><span class="ltr">'+m.devF+' / '+m.devT+'</span></div></button><button class="del" data-del="'+esc(m.id)+'" aria-label="حذف هذا الجرد">🗑</button></div>'}).join('')}
+ var row=function(m,fin){var miss=Math.max(0,m.devT-m.devF);return'<div class="rs"><button class="open" data-open="'+esc(m.id)+'"><div class="r1"><span>'+(fin?'أُقفل <b class="ltr">'+fmt(m.finishedAt||m.updated)+'</b>':'<span class="ltr">'+fmt(m.updated)+'</span>')+'</span>'+(fin?'<span class="pill ok">✔ مُقفل</span>':pill(m))+'</div><div class="r2 ltr">'+esc(m.file)+'</div><div class="r3"><div class="seg"><i style="width:'+pc(m.devF,m.devT)+'%"></i></div><span class="ltr">'+m.devF+' / '+m.devT+'</span></div>'+(fin?'<div class="r2">ناقص '+miss+' · زائد '+m.extra+' · إكسسوارات '+m.accC+'/'+m.accT+'</div>':'')+'</button>'+(fin?'<button class="rep" data-rep="'+esc(m.id)+'" aria-label="فتح التقرير">📄</button>':'')+'<button class="del" data-del="'+esc(m.id)+'" aria-label="حذف هذا الجرد">🗑</button></div>'};
+ var lh='';
+ if(act.length>1)lh+='<h3>جرود جارية أخرى</h3>'+act.slice(1).map(function(m){return row(m,false)}).join('');
+ if(dn.length)lh+='<h3>الجرود المنتهية — مرتبة بتاريخ الإقفال</h3>'+dn.map(function(m){return row(m,true)}).join('');
+ if(lh){$('listc').classList.remove('hide');$('lst').innerHTML=lh}
  else{$('listc').classList.add('hide');$('lst').innerHTML=''}
  stInfo();fsUi()})}
 function stInfo(){var t='يُحفظ الجرد تلقائياً على هذا الجهاز بعد كل عملية. صدّر نسخة احتياطية عند تغيير الجهاز أو الرابط، أو قبل مسح بيانات المتصفح.';
@@ -382,7 +394,7 @@ $('f').onchange=function(e){
     setTimeout(function(){try{
       var buf=rd.result,head=new TextDecoder().decode(new Uint8Array(buf,0,400)),rows;
       if(/<html|<table/i.test(head))rows=rowsFromHtml(new TextDecoder().decode(buf));
-      else{var wb=XLSX.read(buf,{type:'array'}),best=[];
+      else{if(typeof XLSX==='undefined')throw new Error('هذا الملف xlsx حقيقي ويحتاج مكتبة تتحمّل من الإنترنت. استخدم ملف xls الأصلي من ERB، أو شغّل التطبيق مع الإنترنت.');var wb=XLSX.read(buf,{type:'array'}),best=[];
         wb.SheetNames.forEach(function(n){var r=XLSX.utils.sheet_to_json(wb.Sheets[n],{header:1,raw:false,defval:''});if(r.length>best.length)best=r});rows=best}
       var items=parseRows(rows);
       if(!items.length)throw new Error('لا توجد بيانات.');
@@ -430,14 +442,14 @@ function render(keep){
     var ks=Object.keys(g).sort(function(a,b){return cmpName(g[a].d,g[b].d)||cmpName(g[a].s,g[b].s)});
     var h='<table><tr><th>الجهاز</th><th>الموقع</th><th>مجرود / متوقع</th></tr>';
     ks.forEach(function(k){var G=g[k],c=G.a.filter(function(x){return S.dev[x.n]}).length,done=c===G.a.length;
-      var sws=G.a.filter(function(x){return rv[x.n]});var nfc=G.a.filter(function(x){return S.nf&&S.nf[x.n]&&!S.dev[x.n]}).length,sdc=G.a.filter(function(x){return S.sold&&S.sold[x.n]&&!S.dev[x.n]}).length;h+='<tr'+(sws.length?' class="rwarn"':(nfc?' class="rbad"':(done?' class="rdone"':((sdc&&c+sdc===G.a.length)?' class="ryel"':((S.fin||c>0||sdc)?' class="rbad"':'')))))+'><td><details data-k="'+esc(k)+'"'+(OPEN[k]?' open':'')+'><summary>'+esc(G.d)+'</summary><div class="ltr mu">'+G.a.map(function(x){return S.dev[x.n]?'<div'+(rv[x.n]?' class="badc" style="font-weight:700;background:color-mix(in srgb,var(--bad) 22%,transparent);border-radius:6px;padding:2px 6px;margin:2px 0"':'')+'>✔ '+esc(x.n)+(rv[x.n]?' <span>(الفعلي: '+esc(rv[x.n])+')</span>':'')+' <button data-un="'+esc(x.n)+'" style="padding:1px 8px;color:var(--bad)">✕ إلغاء</button></div>':(S.sold&&S.sold[x.n]?'<div class="yl">🏷 '+esc(x.n)+' <span>(مباع — أمر بيع: '+esc(S.sold[x.n].so)+')</span> <button data-se="'+esc(x.n)+'" style="padding:1px 8px">✎</button> <button data-sn="'+esc(x.n)+'" style="padding:1px 8px">↩ إلغاء</button></div>':S.nf&&S.nf[x.n]?'<div class="badc" style="font-weight:700;background:color-mix(in srgb,var(--bad) 22%,transparent);border-radius:6px;padding:2px 6px;margin:2px 0">✖ '+esc(x.n)+' <span>(غير متوفر — عجز)</span> <button data-nn="'+esc(x.n)+'" style="padding:1px 8px">↩ إلغاء</button></div>':'<div>✘ '+esc(x.n)+' <button data-ck="'+esc(x.n)+'" style="padding:1px 8px;color:var(--ok)">✔ متوفر</button> <button data-nf="'+esc(x.n)+'" style="padding:1px 8px;color:var(--bad)">✖ غير متوفر</button> <button data-sd="'+esc(x.n)+'" style="padding:1px 8px;color:var(--warn)">🏷 مباع</button></div>')}).join('')+'</div></details>'+(sws.length?'<div style="color:var(--warn);font-size:12px;margin-top:4px">⚠ سريال مُبدَّل — '+sws.map(function(x){return'الفعلي: <span class="ltr badc" style="font-weight:700">'+esc(rv[x.n])+'</span> ⇄ النظام: <span class="ltr badc" style="font-weight:700">'+esc(x.n)+'</span>'}).join(' | ')+'</div>':'')+'</td><td class="mu">'+esc(G.s)+'</td><td class="'+(done&&!sws.length?'good':'')+'">'+c+' / '+G.a.length+'</td></tr>'});
+      var sws=G.a.filter(function(x){return rv[x.n]});var nfc=G.a.filter(function(x){return S.nf&&S.nf[x.n]&&!S.dev[x.n]}).length,sdc=G.a.filter(function(x){return S.sold&&S.sold[x.n]&&!S.dev[x.n]}).length;var pend=G.a.filter(function(x){return!S.dev[x.n]&&!(S.nf&&S.nf[x.n])&&!(S.sold&&S.sold[x.n])}).length,touched=c+nfc+sdc>0,rc=sws.length?'rwarn':(done?'rdone':(pend===0?(nfc?'rbad':(sdc?'ryel':'')):(S.fin?'rbad':'')));h+='<tr'+(rc?' class="'+rc+'"':'')+'><td><details data-k="'+esc(k)+'"'+(OPEN[k]?' open':'')+'><summary>'+esc(G.d)+(pend?(touched?'<span class="pb">⚠ باقي '+pend+' سريال لم يُجرد</span>':'<span class="pb dim">'+pend+' لم تُجرد</span>'):'')+'</summary><div class="ltr mu">'+G.a.map(function(x){return S.dev[x.n]?'<div'+(rv[x.n]?' class="badc" style="font-weight:700;background:color-mix(in srgb,var(--bad) 22%,transparent);border-radius:6px;padding:2px 6px;margin:2px 0"':'')+'>✔ '+esc(x.n)+(rv[x.n]?' <span>(الفعلي: '+esc(rv[x.n])+')</span>':'')+' <button data-un="'+esc(x.n)+'" style="padding:1px 8px;color:var(--bad)">✕ إلغاء</button></div>':(S.sold&&S.sold[x.n]?'<div class="yl">🏷 '+esc(x.n)+' <span>(مباع — أمر بيع: '+esc(S.sold[x.n].so)+')</span> <button data-se="'+esc(x.n)+'" style="padding:1px 8px">✎</button> <button data-sn="'+esc(x.n)+'" style="padding:1px 8px">↩ إلغاء</button></div>':S.nf&&S.nf[x.n]?'<div class="badc" style="font-weight:700;background:color-mix(in srgb,var(--bad) 22%,transparent);border-radius:6px;padding:2px 6px;margin:2px 0">✖ '+esc(x.n)+' <span>(غير متوفر — عجز)</span> <button data-nn="'+esc(x.n)+'" style="padding:1px 8px">↩ إلغاء</button></div>':'<div class="pend">✘ '+esc(x.n)+' <button data-ck="'+esc(x.n)+'" style="padding:1px 8px;color:var(--ok)">✔ متوفر</button> <button data-nf="'+esc(x.n)+'" style="padding:1px 8px;color:var(--bad)">✖ غير متوفر</button> <button data-sd="'+esc(x.n)+'" style="padding:1px 8px;color:var(--warn)">🏷 مباع</button> <button data-sx="'+esc(x.n)+'" style="padding:1px 8px;color:var(--warn)">🔁 سريال مُبدَّل</button></div>')}).join('')+'</div></details>'+(sws.length?'<div style="color:var(--warn);font-size:12px;margin-top:4px">⚠ سريال مُبدَّل — '+sws.map(function(x){return'الفعلي: <span class="ltr badc" style="font-weight:700">'+esc(rv[x.n])+'</span> ⇄ النظام: <span class="ltr badc" style="font-weight:700">'+esc(x.n)+'</span>'}).join(' | ')+'</div>':'')+'</td><td class="mu">'+esc(G.s)+'</td><td class="'+(done&&!sws.length?'good':'')+'">'+c+' / '+G.a.length+'</td></tr>'});
     $('dev').innerHTML=h+'</table>';
   }
   if(curTab===2&&!keep||curTab===2&&keep){
     var q=$('aq').value.toLowerCase(),h2='<table><tr><th>الإكسسوار</th><th>الموقع</th><th>المتوقع</th><th>المعدود</th></tr>';
     ac.filter(function(x){return!q||(x.d+x.k).toLowerCase().indexOf(q)>=0}).forEach(function(x){var k=accKey(x),c=S.acc[k],ek=esc(k).replace(/'/g,'&#39;');
       var diff=c==null?'':(c===x.q?'good':'badc');
-      h2+='<tr'+(c!=null&&c===x.q?' class="rdone"':(c==null?(S.fin?' class="rbad"':''):(c<x.q?' class="rbad"':' class="rwarn"')))+'><td>'+esc(x.d)+'<div class="mu ltr">'+esc(x.k)+'</div></td><td class="mu">'+esc(x.s)+'</td><td>'+x.q+'</td><td><div class="q"><button data-k="'+ek+'" data-d="-1">−</button><input type="number" min="0" class="'+diff+'" value="'+(c==null?'':c)+'" data-k="'+ek+'" placeholder="—"><button data-k="'+ek+'" data-d="1">+</button></div></td></tr>'});
+      h2+='<tr'+(c!=null&&c===x.q?' class="rdone"':(c==null?(S.fin?' class="rbad"':''):(c<x.q?' class="rbad"':' class="rwarn"')))+'><td>'+esc(x.d)+'<div class="mu ltr">'+esc(x.k)+'</div><textarea class="nt" rows="1" data-nk="'+ek+'" placeholder="ملاحظات (عجز / زيادة / سبب...)">'+esc((S.note&&S.note[k])||'')+'</textarea></td><td class="mu">'+esc(x.s)+'</td><td>'+x.q+'</td><td><div class="q"><button data-k="'+ek+'" data-d="-1">−</button><input type="number" min="0" class="'+diff+'" value="'+(c==null?'':c)+'" data-k="'+ek+'" placeholder="—"><button data-k="'+ek+'" data-d="1">+</button></div></td></tr>'});
     $('acc').innerHTML=h2+'</table>';
   }
   if(curTab===4){var g1={},g2={};
@@ -449,7 +461,8 @@ function render(keep){
   if(curTab===3)renderReport();
 }
 $('acc').addEventListener('click',function(e){var b=e.target.closest('button');if(!b)return;var k=b.getAttribute('data-k');setAcc(k,(S.acc[k]||0)+parseInt(b.getAttribute('data-d')))});
-$('acc').addEventListener('change',function(e){var i=e.target;if(i.tagName==='INPUT')setAcc(i.getAttribute('data-k'),i.value)});
+$('acc').addEventListener('change',function(e){var i=e.target;if(i.tagName==='INPUT'&&i.hasAttribute('data-k'))setAcc(i.getAttribute('data-k'),i.value)});
+$('acc').addEventListener('input',function(e){var t=e.target,k=t.hasAttribute&&t.getAttribute('data-nk');if(k==null)return;S.note=S.note||{};var v=t.value;if(v.trim())S.note[k]=v;else delete S.note[k];save()});
 
 function exp(){
   var it=sel(),mis=[],ext=[],acc=[];
@@ -499,30 +512,38 @@ $('cval').addEventListener('keydown',function(e){if(e.key==='Enter'){e.preventDe
  var rvx={};Object.keys(S.swap||{}).forEach(function(a){rvx[S.swap[a]]=a});var it=sel(),rows=[],T={dev:0,found:0,miss:0,nf:0,sold:0,acc:0,accOk:0,accDiff:0,accNone:0};
  it.forEach(function(x){
   if(x.n){var f=!!S.dev[x.n];T.dev++;f?T.found++:T.miss++;
-   rows.push({'الموقع':x.s,'النوع':'جهاز','الصنف':x.d,'السريال':x.n,'السريال الفعلي':rvx[x.n]||'','المتوقع':1,'المعدود':f?1:0,'الفرق':f?0:-1,'رقم أمر البيع':(!f&&S.sold&&S.sold[x.n])?S.sold[x.n].so:'','الحالة':f?(rvx[x.n]?'مجرود (سريال مُبدَّل)':'مجرود'):((S.sold&&S.sold[x.n])?'مباع':(S.nf&&S.nf[x.n]?'عجز (غير متوفر)':'ناقص'))});if(!f&&S.sold&&S.sold[x.n])T.sold++;else if(!f&&S.nf&&S.nf[x.n])T.nf++}
+   rows.push({'الموقع':x.s,'النوع':'جهاز','الصنف':x.d,'السريال':x.n,'السريال الفعلي':rvx[x.n]||'','المتوقع':1,'المعدود':f?1:0,'الفرق':f?0:-1,'رقم أمر البيع':(!f&&S.sold&&S.sold[x.n])?S.sold[x.n].so:'','الحالة':f?(rvx[x.n]?'مجرود (سريال مُبدَّل)':'مجرود'):((S.sold&&S.sold[x.n])?'مباع':(S.nf&&S.nf[x.n]?'عجز (غير متوفر)':'ناقص')),'ملاحظات':''});if(!f&&S.sold&&S.sold[x.n])T.sold++;else if(!f&&S.nf&&S.nf[x.n])T.nf++}
   else{var c=S.acc[accKey(x)],st,df='';T.acc++;
    if(c==null){st='لم يُعدّ';T.accNone++}else{df=c-x.q;st=df===0?'مطابق':(df<0?'ناقص':'زائد');df===0?T.accOk++:T.accDiff++}
-   rows.push({'الموقع':x.s,'النوع':'إكسسوار','الصنف':x.d,'السريال':'','السريال الفعلي':'','المتوقع':x.q,'المعدود':c==null?'':c,'الفرق':df,'رقم أمر البيع':'','الحالة':st})}});
+   rows.push({'الموقع':x.s,'النوع':'إكسسوار','الصنف':x.d,'السريال':'','السريال الفعلي':'','المتوقع':x.q,'المعدود':c==null?'':c,'الفرق':df,'رقم أمر البيع':'','الحالة':st,'ملاحظات':(S.note&&S.note[accKey(x)])||''})}});
  var ex=Object.keys(S.extra);
- ex.forEach(function(s){rows.push({'الموقع':'','النوع':'جهاز','الصنف':(S.extra[s].name||'غير موجود في ملف المخزون - بدون اسم'),'السريال':s,'السريال الفعلي':'','المتوقع':0,'المعدود':1,'الفرق':1,'رقم أمر البيع':'','الحالة':'زائد'})});
+ ex.forEach(function(s){rows.push({'الموقع':'','النوع':'جهاز','الصنف':(S.extra[s].name||'غير موجود في ملف المخزون - بدون اسم'),'السريال':s,'السريال الفعلي':'','المتوقع':0,'المعدود':1,'الفرق':1,'رقم أمر البيع':'','الحالة':'زائد','ملاحظات':''})});
  var d=new Date(),ds=d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2);
  var sm=[['الملف المستورد',D.file],['الموقع',$('sub').value||'كل المواقع'],['تاريخ الجرد',ds],['',''],['الأجهزة المتوقعة',T.dev],['الأجهزة المجرودة',T.found],['الأجهزة الناقصة',T.miss],['عجز مؤكد (غير متوفر)',T.nf],['مباع',T.sold],['سيريال زائد',ex.length],['سيريال مُبدَّل (بديل لسريال آخر)',Object.keys(S.swap||{}).length],['',''],['أصناف الإكسسوارات',T.acc],['مطابقة',T.accOk],['بها فرق',T.accDiff],['لم تُعدّ',T.accNone]];
  var bad=rows.filter(function(r){return r['الحالة']!=='مجرود'&&r['الحالة']!=='مطابق'});
  var eg={};D.items.filter(isEx).forEach(function(x){var k=nz(x.d);(eg[k]=eg[k]||{'الصنف':x.d,'العدد':0})['العدد']+=x.q||1});
  var er=Object.keys(eg).map(function(k){return eg[k]});
  return{rows:rows,sm:sm,bad:bad,er:er,ds:ds,T:T,ex:ex}}
+function xe(s){return String(s==null?'':s).replace(/[&<>"\u0000-\u0008\u000b\u000c\u000e-\u001f]/g,function(c){return c==='&'?'&amp;':c==='<'?'&lt;':c==='>'?'&gt;':c==='"'?'&quot;':''})}
+function xCell(v){return typeof v==='number'&&isFinite(v)?'<Cell><Data ss:Type="Number">'+v+'</Data></Cell>':'<Cell><Data ss:Type="String">'+xe(v)+'</Data></Cell>'}
+function xSheet(name,head,rows){return'<Worksheet ss:Name="'+xe(name).slice(0,31)+'"><Table>'+(head?'<Row>'+head.map(function(c){return'<Cell ss:StyleID="h"><Data ss:Type="String">'+xe(c)+'</Data></Cell>'}).join('')+'</Row>':'')+rows.map(function(r){return'<Row>'+r.map(xCell).join('')+'</Row>'}).join('')+'</Table><WorksheetOptions xmlns="urn:schemas-microsoft-com:office:excel"><DisplayRightToLeft/></WorksheetOptions></Worksheet>'}
+function xObjs(name,list){if(!list.length)return xSheet(name,null,[['لا يوجد']]);var ks=Object.keys(list[0]);return xSheet(name,ks,list.map(function(o){return ks.map(function(k){return o[k]})}))}
+function exportOffline(R){
+ var x='<?xml version="1.0" encoding="UTF-8"?><?mso-application progid="Excel.Sheet"?><Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet"><Styles><Style ss:ID="h"><Font ss:Bold="1"/><Interior ss:Color="#D9E2F3" ss:Pattern="Solid"/></Style></Styles>'+
+ xSheet('الملخص',null,R.sm)+xObjs('الجرد النهائي',R.rows)+xObjs('الفروقات فقط',R.bad)+xObjs('ليست بحاجة للجرد',R.er)+'</Workbook>';
+ var b=new Blob([x],{type:'application/vnd.ms-excel'}),a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='inventory-final-'+R.ds+'.xls';document.body.appendChild(a);a.click();setTimeout(function(){URL.revokeObjectURL(a.href);a.remove()},1500)}
 function exportFinal(){
- if(typeof XLSX==='undefined'){alert('مكتبة Excel لم تتحمّل. تحتاج إنترنت للتصدير.');return}
  var R=buildReport(),rows=R.rows;
+ if(typeof XLSX==='undefined'){exportOffline(R);return}
  var wb=XLSX.utils.book_new(),w1=XLSX.utils.aoa_to_sheet(R.sm),w2=XLSX.utils.json_to_sheet(rows.length?rows:[{'—':'لا يوجد'}]);
- w1['!cols']=[{wch:26},{wch:36}];w2['!cols']=[{wch:14},{wch:10},{wch:42},{wch:24},{wch:24},{wch:10},{wch:10},{wch:8},{wch:16},{wch:22}];
+ w1['!cols']=[{wch:26},{wch:36}];w2['!cols']=[{wch:14},{wch:10},{wch:42},{wch:24},{wch:24},{wch:10},{wch:10},{wch:8},{wch:16},{wch:22},{wch:40}];
  var w3=XLSX.utils.json_to_sheet(R.bad.length?R.bad:[{'—':'لا يوجد'}]);w3['!cols']=w2['!cols'];
  XLSX.utils.book_append_sheet(wb,w1,'الملخص');XLSX.utils.book_append_sheet(wb,w2,'الجرد النهائي');XLSX.utils.book_append_sheet(wb,w3,'الفروقات فقط');
  XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(R.er.length?R.er:[{'—':'لا يوجد'}]),'ليست بحاجة للجرد');
  wb.Workbook={Views:[{RTL:true}]};
  XLSX.writeFile(wb,'inventory-final-'+R.ds+'.xlsx')}
 var RS='final',RF='all',RQ='';
-var RCOLS=['الموقع','النوع','الصنف','السريال','السريال الفعلي','المتوقع','المعدود','الفرق','رقم أمر البيع','الحالة'];
+var RCOLS=['الموقع','النوع','الصنف','السريال','السريال الفعلي','المتوقع','المعدود','الفرق','رقم أمر البيع','الحالة','ملاحظات'];
 function rowCls(r){var s=r['الحالة'];if(s==='مجرود'||s==='مطابق')return'rdone';if(s==='ناقص'||s==='عجز (غير متوفر)')return'rbad';if(s==='مباع')return'ryel';if(s==='زائد')return r['النوع']==='جهاز'?'rbad':'rwarn';if(s.indexOf('مُبدَّل')>=0)return'rwarn';return''}
 function renderReport(){
  var R=buildReport(),h='',foc=document.activeElement&&document.activeElement.id==='rq',pos=foc?document.activeElement.selectionStart:0;
@@ -576,8 +597,9 @@ $('dev').addEventListener('click',function(e){var b=e.target.closest('button'),s
 $('dev').addEventListener('toggle',function(e){var d=e.target,k=d.tagName==='DETAILS'&&d.getAttribute('data-k');if(k){if(d.open)OPEN[k]=1;else delete OPEN[k]}},true);
 $('dev').addEventListener('click',function(e){var b=e.target.closest('button'),s=b&&b.getAttribute('data-ck');if(s&&!S.dev[s]){S.dev[s]=Date.now();if(S.nf)delete S.nf[s];if(S.sold)delete S.sold[s];hist('d',s);var it=D.items.filter(function(x){return x.n===s})[0]||{};$('smsg').innerHTML='<div class="msg ok">✔ تم جرد '+esc(it.d||'')+' يدوياً: '+esc(s)+'</div>';save();render()}});
 function askSO(s,old){var v=prompt('أدخل رقم أمر البيع للسريال '+s+':',old||'');if(v==null)return null;v=v.trim();if(!v){alert('رقم أمر البيع مطلوب.');return null}return v}
-$('dev').addEventListener('click',function(e){var b=e.target.closest('button'),n=b&&b.getAttribute('data-nf'),u=b&&b.getAttribute('data-nn'),sd=b&&b.getAttribute('data-sd'),se=b&&b.getAttribute('data-se'),sn=b&&b.getAttribute('data-sn');
- if(sd&&!S.dev[sd]){var so=askSO(sd);if(so){S.sold=S.sold||{};S.sold[sd]={t:Date.now(),so:so};if(S.nf)delete S.nf[sd];hist('s',sd);var it0=D.items.filter(function(x){return x.n===sd})[0]||{};$('smsg').innerHTML='<div class="msg warn">🏷 مباع: '+esc(it0.d||'')+' — '+esc(sd)+' (أمر بيع '+esc(so)+')</div>';save();render()}}
+$('dev').addEventListener('click',function(e){var b=e.target.closest('button'),n=b&&b.getAttribute('data-nf'),u=b&&b.getAttribute('data-nn'),sd=b&&b.getAttribute('data-sd'),se=b&&b.getAttribute('data-se'),sn=b&&b.getAttribute('data-sn'),sx=b&&b.getAttribute('data-sx');
+ if(sx&&!S.dev[sx]){var a=prompt('أدخل السريال الفعلي الذي وجدته بدل السريال '+sx+':','');if(a!=null){a=clean(a).toUpperCase();var inF=function(v){return D.items.some(function(x){return x.n===v})};if(a.length>1&&a.charAt(0)==='S'&&!inF(a))a=a.slice(1);var wm=!a?'السريال الفعلي مطلوب.':a===sx?'السريال الفعلي هو نفس سريال النظام، استخدم «متوفر».':inF(a)?'هذا السريال موجود في ملف المخزون كجهاز آخر، سجّله بالمسح أو «متوفر» من سريال.':(S.swap&&S.swap[a])?'هذا السريال مربوط مسبقاً ببديل.':'';if(wm)alert(wm);else{swapSer(a,sx)}}}
+ else if(sd&&!S.dev[sd]){var so=askSO(sd);if(so){S.sold=S.sold||{};S.sold[sd]={t:Date.now(),so:so};if(S.nf)delete S.nf[sd];hist('s',sd);var it0=D.items.filter(function(x){return x.n===sd})[0]||{};$('smsg').innerHTML='<div class="msg warn">🏷 مباع: '+esc(it0.d||'')+' — '+esc(sd)+' (أمر بيع '+esc(so)+')</div>';save();render()}}
  else if(se&&S.sold&&S.sold[se]){var so2=askSO(se,S.sold[se].so);if(so2){S.sold[se].so=so2;save();render()}}
  else if(sn&&S.sold){delete S.sold[sn];save();render()}
  else if(n&&!S.dev[n]){S.nf=S.nf||{};S.nf[n]=Date.now();if(S.sold)delete S.sold[n];hist('n',n);var it=D.items.filter(function(x){return x.n===n})[0]||{};$('smsg').innerHTML='<div class="msg bad">✖ غير متوفر (عجز): '+esc(it.d||'')+' — '+esc(n)+'</div>';save();render()}
@@ -588,8 +610,9 @@ $('fb').onclick=function(){if(!confirm('إنهاء الجرد وحفظه؟ يب�
  CUR.status='done';CUR.finishedAt=Date.now();DIRTY=true;
  flush().then(function(){var t=fmt(CUR.finishedAt);return showHome().then(function(){$('imsg').innerHTML='<div class="msg ok">✔ تم إنهاء الجرد وحفظه بتاريخ '+t+'</div>'})})};
 $('home').addEventListener('click',function(e){var b=e.target.closest('button');if(!b)return;
- var o=b.getAttribute('data-open'),d=b.getAttribute('data-del');
- if(o)openSession(o);
+ var o=b.getAttribute('data-open'),d=b.getAttribute('data-del'),rp=b.getAttribute('data-rep');
+ if(rp)openSession(rp).then(function(){if(SID)tab(3)});
+ else if(o)openSession(o);
  else if(d&&confirm('حذف هذا الجرد نهائياً من هذا الجهاز؟'))Promise.all([kvDel('data',d),kvDel('state',d),kvDel('meta',d)]).then(function(){delete FC[d];fsSchedule();if(SY.on)syApi('/api/s/'+encodeURIComponent(d),'DELETE').catch(function(){});return renderHome()})});
 $('bk').onclick=function(){backupAll()};
 $('rf').onchange=function(e){var f=e.target.files[0];if(f)restoreAll(f);$('rf').value=''};
