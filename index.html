@@ -25,7 +25,11 @@ button{cursor:pointer}button.p{background:var(--ac);color:#fff;border-color:var(
 input.big{flex:1;min-width:180px;font-size:17px;direction:ltr;text-align:left}
 .tabs{display:flex;gap:6px;margin-bottom:12px}.tabs button{flex:1}.tabs button.on{background:var(--ac);color:#fff;border-color:var(--ac)}
 .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px}
-.st{background:var(--bg);border-radius:10px;padding:8px 10px}.st b{display:block;font-size:20px}.st span{color:var(--mu);font-size:12px}
+.st{background:var(--bg);border-radius:10px;padding:8px 10px}
+button.st{font:inherit;color:inherit;text-align:start;cursor:pointer;border:1px solid transparent;width:100%;display:block;position:relative}
+button.st::after{content:'▾';position:absolute;inset-inline-end:8px;top:6px;color:var(--mu);font-size:12px}
+button.st.on{border-color:var(--ac);background:color-mix(in srgb,var(--ac) 10%,var(--bg))}button.st.on::after{content:'▴'}
+#stp{margin-top:10px}#stp .ph{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px;font-weight:600}.st b{display:block;font-size:20px}.st span{color:var(--mu);font-size:12px}
 .bar{height:8px;background:var(--bd);border-radius:6px;overflow:hidden;margin-top:6px}.bar i{display:block;height:100%;background:var(--ok)}
 .msg{padding:9px 12px;border-radius:8px;margin-top:8px;font-weight:600}
 .msg.ok{background:color-mix(in srgb,var(--ok) 18%,transparent);color:var(--ok)}
@@ -145,7 +149,7 @@ tr.ryel td{background:color-mix(in srgb,#f2c200 42%,transparent)}
 <div class="card"><div class="row"><button id="hb">🏠 الرئيسية</button><select id="sub"></select><span id="fn" class="mu"></span><span id="sv" class="mu"></span><span id="fv" class="mu"></span><button id="fvb" class="hide">⚠ فعّل الحفظ بالملف</button></div></div>
 
 <div id="app" class="hide">
-  <div class="card"><div class="stats" id="stats"></div><label style="display:flex;gap:8px;align-items:center;margin-top:10px"><input type="checkbox" id="fin" style="width:auto"> تظليل كل الناقص بالأحمر (مراجعة نهائية)</label></div>
+  <div class="card"><div class="stats" id="stats"></div><div id="stp" class="hide"></div><label style="display:flex;gap:8px;align-items:center;margin-top:10px"><input type="checkbox" id="fin" style="width:auto"> تظليل كل الناقص بالأحمر (مراجعة نهائية)</label></div>
   <div class="tabs">
     <button id="t1" class="on">الأجهزة (السريال)</button>
     <button id="t2">الإكسسوارات (العدد)</button>
@@ -226,7 +230,7 @@ window.addEventListener('pagehide',function(){flush()});
 document.addEventListener('visibilitychange',function(){if(document.hidden)flush()});
 
 function enterWork(){$('hh').classList.add('hide');$('home').classList.add('hide');$('wk').classList.remove('hide');$('sub').value='';init();tab(1)}
-function showHome(){if(typeof cam!=='undefined'&&cam.on)camStop();
+function showHome(){STP=null;if(typeof cam!=='undefined'&&cam.on)camStop();
  return flush().then(function(ok){if(ok===false&&!confirm('تعذّر حفظ آخر التغييرات. الخروج رغم ذلك؟'))return;
   SID=null;CUR=null;D=null;S={dev:{},extra:{},acc:{}};DIRTY=false;$('imsg').innerHTML='';
   $('wk').classList.add('hide');$('app').classList.add('hide');$('hh').classList.remove('hide');$('home').classList.remove('hide');window.scrollTo(0,0);return renderHome()})}
@@ -436,12 +440,28 @@ function scan(val){
 $('ser').addEventListener('keydown',function(e){if(e.key==='Enter')scan()});
 function setAcc(k,v){v=Math.max(0,parseInt(v)||0);S.acc[k]=v;save();render(true)}
 
+var STP=null;
 function render(keep){
   if(!D)return;renderX();var rv={};Object.keys(S.swap||{}).forEach(function(a){rv[S.swap[a]]=a});var it=sel(),dv=it.filter(function(x){return x.n}),ac=it.filter(function(x){return!x.n});
   var found=dv.filter(function(x){return S.dev[x.n]}).length;
   var aE=0,aC=0;ac.forEach(function(x){aE+=x.q;aC+=Math.min(S.acc[accKey(x)]||0,1e9)});
   var pct=dv.length?Math.round(found/dv.length*100):0;
-  $('stats').innerHTML=[['الأجهزة المجرودة',found+' / '+dv.length],['الأجهزة الناقصة',dv.length-found],['عجز مؤكد (غير متوفر)',dv.filter(function(x){return S.nf&&S.nf[x.n]&&!S.dev[x.n]}).length],['مباع',dv.filter(function(x){return S.sold&&S.sold[x.n]&&!S.dev[x.n]}).length],['سريال زائد',Object.keys(S.extra).length],['الإكسسوارات (عدّ / متوقع)',aC+' / '+aE]].map(function(a){return'<div class="st"><b>'+a[1]+'</b><span>'+a[0]+'</span></div>'}).join('')+'<div class="st" style="grid-column:1/-1"><span>تقدم جرد الأجهزة '+pct+'%</span><div class="bar"><i style="width:'+pct+'%"></i></div></div>';
+  var nfL=dv.filter(function(x){return S.nf&&S.nf[x.n]&&!S.dev[x.n]}),sdL=dv.filter(function(x){return S.sold&&S.sold[x.n]&&!S.dev[x.n]}),swL=dv.filter(function(x){return rv[x.n]}),exK=Object.keys(S.extra);
+  $('stats').innerHTML=[['الأجهزة المجرودة',found+' / '+dv.length,'found'],['الأجهزة الناقصة',dv.length-found,'miss'],['عجز مؤكد (غير متوفر)',nfL.length,'nf'],['مباع',sdL.length,'sold'],['سريال مُبدَّل',swL.length,'swap'],['سريال زائد',exK.length,'extra'],['الإكسسوارات (عدّ / متوقع)',aC+' / '+aE,'acc']].map(function(a){return'<button type="button" class="st'+(STP===a[2]?' on':'')+'" data-st="'+a[2]+'"><b>'+a[1]+'</b><span>'+a[0]+'</span></button>'}).join('')+'<div class="st" style="grid-column:1/-1"><span>تقدم جرد الأجهزة '+pct+'%</span><div class="bar"><i style="width:'+pct+'%"></i></div></div>';
+  (function(){var P=$('stp');if(!STP){P.classList.add('hide');P.innerHTML='';return}
+   var T={found:'الأجهزة المجرودة',miss:'الأجهزة الناقصة (لم تُجرد بعد، أو عجز، أو مباعة)',nf:'عجز مؤكد (غير متوفر)',sold:'مباع',swap:'السريالات المُبدَّلة',extra:'السريالات الزائدة',acc:'الإكسسوارات'}[STP],hd,rows;
+   var dr=function(x,ex){return[x.s,x.d,x.n].concat(ex||[])};
+   if(STP==='found'){hd=['الموقع','الجهاز','السريال'];rows=dv.filter(function(x){return S.dev[x.n]}).map(function(x){return dr(x)})}
+   else if(STP==='miss'){hd=['الموقع','الجهاز','السريال','الحالة'];rows=dv.filter(function(x){return!S.dev[x.n]}).map(function(x){return dr(x,[S.sold&&S.sold[x.n]?'مباع':(S.nf&&S.nf[x.n]?'عجز':'لم يُجرد')])})}
+   else if(STP==='nf'){hd=['الموقع','الجهاز','السريال'];rows=nfL.map(function(x){return dr(x)})}
+   else if(STP==='sold'){hd=['الموقع','الجهاز','السريال','رقم أمر البيع'];rows=sdL.map(function(x){return dr(x,[S.sold[x.n].so])})}
+   else if(STP==='swap'){hd=['الموقع','الجهاز','سريال النظام','السريال الفعلي'];rows=swL.map(function(x){return dr(x,[rv[x.n]])})}
+   else if(STP==='extra'){hd=['السريال','اسم الجهاز'];rows=exK.map(function(s){return[s,(S.extra[s]||{}).name||'—']})}
+   else{hd=['الموقع','الصنف','المتوقع','المعدود','الفرق'];rows=ac.map(function(x){var c=S.acc[accKey(x)];return[x.s,x.d,x.q,c==null?'—':c,c==null?'—':c-x.q]})}
+   var CAP=500;P.classList.remove('hide');
+   P.innerHTML='<div class="ph"><span>'+T+' <span class="mu">('+rows.length+')</span></span><button type="button" data-stx="1" style="padding:2px 10px">✕ إغلاق</button></div>'+
+    '<div class="xlw" style="max-height:45vh"><table class="xl"><tr><th class="rn">#</th>'+hd.map(function(c){return'<th>'+c+'</th>'}).join('')+'</tr>'+
+    (rows.length?rows.slice(0,CAP).map(function(r,i){return'<tr><td class="rn">'+(i+1)+'</td>'+r.map(function(v,j){return'<td'+(hd[j]&&/السريال|سريال/.test(hd[j])&&hd[j]!=='اسم الجهاز'?' class="ltr"':'')+'>'+esc(v)+'</td>'}).join('')+'</tr>'}).join(''):'<tr><td class="rn">—</td><td colspan="'+hd.length+'" class="mu">لا يوجد شيء.</td></tr>')+'</table></div>'+(rows.length>CAP?'<div class="xlnote">يُعرض أول '+CAP+' فقط. القائمة الكاملة في التقرير.</div>':'')})();
   if(curTab===1){
     var g={};dv.forEach(function(x){var k=x.s+'|'+x.d;(g[k]=g[k]||{s:x.s,d:x.d,a:[]}).a.push(x)});
     var ks=Object.keys(g).sort(function(a,b){return cmpName(g[a].d,g[b].d)||cmpName(g[a].s,g[b].s)});
@@ -609,6 +629,8 @@ $('dev').addEventListener('click',function(e){var b=e.target.closest('button'),n
  else if(sn&&S.sold){delete S.sold[sn];save();render()}
  else if(n&&!S.dev[n]){S.nf=S.nf||{};S.nf[n]=Date.now();if(S.sold)delete S.sold[n];hist('n',n);var it=D.items.filter(function(x){return x.n===n})[0]||{};$('smsg').innerHTML='<div class="msg bad">✖ غير متوفر (عجز): '+esc(it.d||'')+' — '+esc(n)+'</div>';save();render()}
  else if(u&&S.nf){delete S.nf[u];save();render()}});
+$('stats').addEventListener('click',function(e){var b=e.target.closest('button.st');if(!b)return;var k=b.getAttribute('data-st');STP=STP===k?null:k;render(true)});
+$('stp').addEventListener('click',function(e){if(e.target.closest('[data-stx]')){STP=null;render(true)}});
 $('rb').onclick=reset;
 $('hb').onclick=function(){showHome()};
 $('fb').onclick=function(){if(!confirm('إنهاء الجرد وحفظه؟ يبقى محفوظاً ويمكنك فتحه لاحقاً من الصفحة الرئيسية.'))return;
