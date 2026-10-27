@@ -353,19 +353,28 @@ function backupAll(mode){return flush().then(function(){return kvAll('meta')}).t
      return navigator.share({files:[f],title:'نسخة احتياطية - جرد المخزون'}).then(function(){ok('✔ تمت مشاركة النسخة الاحتياطية ('+arr.length+' جرد).')}).catch(function(e){if(e&&e.name==='AbortError'){$('bmsg').innerHTML='';return}dl(nm,tx);ok('تعذّرت المشاركة، فحُفظت النسخة كملف ('+arr.length+' جرد).')});
     dl(nm,tx);ok('هذا الجهاز أو المتصفح لا يدعم المشاركة، فحُفظت النسخة كملف ('+arr.length+' جرد). يمكنك إرسال الملف يدوياً.');return}
    dl(nm,tx);ok('✔ تم حفظ نسخة احتياطية فيها '+arr.length+' جرد.')})})})}
-function restoreText(text){return KVR.then(function(){
+function restoreText(text,force){return KVR.then(function(){
  var o=JSON.parse(text);
  if(!o||o.app!=='stk-inv'||!Array.isArray(o.sessions))throw new Error('هذا ليس ملف نسخة احتياطية صالحاً.');
- var n=0,chain=Promise.resolve();
+ var n=0,skip=0,chain=Promise.resolve();
  o.sessions.forEach(function(s){if(!s||!s.meta||!s.meta.id||!s.data||!s.data.items)return;
   chain=chain.then(function(){return kvGet('meta',s.meta.id)}).then(function(ex){
-   if(ex&&ex.updated>=s.meta.updated)return;n++;
+   if(!force&&ex&&ex.updated>=s.meta.updated){skip++;return}n++;if(SY.on)s.meta.updated=Math.max(Date.now(),s.meta.updated||0);
    return kvSet('data',s.meta.id,s.data).then(function(){return kvSet('state',s.meta.id,s.state||{dev:{},extra:{},acc:{}})}).then(function(){return kvSet('meta',s.meta.id,s.meta)})})});
- return chain.then(function(){return o.prefs&&o.prefs.rest?kvGet('state','_prefs').then(function(p){if(!p)return kvSet('state','_prefs',o.prefs)}):null}).then(function(){fsSchedule();return n})})}
-function restoreAll(file){var rd=new FileReader();rd.onload=function(){
- restoreText(rd.result).then(function(n){$('bmsg').innerHTML='<div class="msg ok">✔ تمت استعادة '+n+' جرد من النسخة الاحتياطية.</div>';return renderHome()})
- .catch(function(err){$('bmsg').innerHTML='<div class="msg bad">'+esc(err.message)+'</div>'})};
- rd.readAsText(file)}
+ return chain.then(function(){return o.prefs&&o.prefs.rest?kvGet('state','_prefs').then(function(p){if(!p)return kvSet('state','_prefs',o.prefs)}):null}).then(function(){fsSchedule();return{n:n,skip:skip}})})}
+function restoreAll(file){var m=$('bmsg'),done=function(){try{$('rf').value=''}catch(e){}};
+ m.innerHTML='<div class="msg warn">جاري قراءة الملف...</div>';
+ var rd=new FileReader();
+ rd.onerror=function(){done();m.innerHTML='<div class="msg bad">تعذّرت قراءة الملف. جرّب اختياره مرة أخرى.</div>'};
+ rd.onload=function(){var txt=rd.result;done();
+  restoreText(txt,false).then(function(r){
+   if(r.skip>0&&confirm('في النسخة '+(r.n+r.skip)+' جرد. منها '+r.skip+' موجود عندك مسبقاً بنفس التاريخ أو أحدث.'+(r.n?'\n(تمت استعادة '+r.n+' جرد جديد.)':'')+'\n\nهل تريد استبدال الموجود بما في النسخة الاحتياطية؟'))return restoreText(txt,true).then(function(r2){return{n:r2.n,skip:0,forced:true}});
+   return r}).then(function(r){
+   m.innerHTML=r.n?'<div class="msg ok">✔ تمت استعادة '+r.n+' جرد من النسخة الاحتياطية.'+(r.skip?' ('+r.skip+' جرد لم يتغير لأنه موجود وأحدث)':'')+'</div>':'<div class="msg warn">لم يُستعَد شيء: كل الجرود في الملف موجودة عندك مسبقاً بنفس التاريخ أو أحدث.</div>';
+   try{m.scrollIntoView({block:'center'})}catch(e){}
+   return renderHome().then(function(){return SY.on?syAll():0}).then(function(ch){if(ch)return renderHome()})})
+  .catch(function(err){m.innerHTML='<div class="msg bad">'+esc(err&&err.message||err)+'</div>'})};
+ try{rd.readAsText(file)}catch(e){done();m.innerHTML='<div class="msg bad">تعذّرت قراءة الملف.</div>'}}
 function migrate(){return kvGet('meta','legacy1').then(function(ex){if(ex)return;var r=null;try{r=localStorage.getItem(KEY)}catch(e){}if(!r)return;
  var o;try{o=JSON.parse(r)}catch(e){return}if(!o||!o.D||!o.D.items)return;
  D=o.D;S=o.S||{};norm();SID='legacy1';CUR={created:Date.now(),status:'active',finishedAt:null};var m=metaNow();
@@ -643,7 +652,7 @@ $('home').addEventListener('click',function(e){var b=e.target.closest('button');
  else if(d&&confirm('حذف هذا الجرد نهائياً من هذا الجهاز؟'))Promise.all([kvDel('data',d),kvDel('state',d),kvDel('meta',d)]).then(function(){delete FC[d];fsSchedule();if(SY.on)syApi('/api/s/'+encodeURIComponent(d),'DELETE').catch(function(){});return renderHome()})});
 $('bk').onclick=function(){$('bmsg').innerHTML='<div class="msg warn">كيف تريد النسخة الاحتياطية؟<div class="row" style="margin-top:8px"><button class="p" data-bkm="save">💾 حفظ</button><button data-bkm="share">📤 مشاركة</button><button data-bkm="no">إلغاء</button></div></div>'};
 $('bmsg').addEventListener('click',function(e){var b=e.target.closest('button'),m=b&&b.getAttribute('data-bkm');if(!m)return;if(m==='no')$('bmsg').innerHTML='';else backupAll(m)});
-$('rf').onchange=function(e){var f=e.target.files[0];if(f)restoreAll(f);$('rf').value=''};
+$('rf').onchange=function(e){var f=e.target.files&&e.target.files[0];if(f)restoreAll(f);else $('rf').value=''};
 fsInit();syInit();
 KVR.then(migrate).then(renderHome).then(function(){try{if(navigator.storage&&navigator.storage.persist)navigator.storage.persist().then(function(p){PERSIST=p;stInfo()})}catch(e){}});
 </script>
