@@ -307,12 +307,14 @@ function fsInit(){return KVR.then(function(){if(!FSOK||useLS){fsUi();return}
  return kvGet('state','_fh').then(function(hd){if(!hd){fsUi();return}FH=hd;return fsPerm(hd).then(function(p){FSTATE=p==='granted'?'on':'need';fsUi()})})}).catch(function(){fsUi()})}
 $('fsbox').addEventListener('click',function(e){var b=e.target.closest('button'),a=b&&b.getAttribute('data-fs');if(!a)return;if(a==='link')fsLink();else if(a==='re')fsReactivate();else if(a==='unlink')fsUnlink()});
 $('fvb').onclick=function(){fsReactivate()};
-var SY={av:false,on:false,code:'',T:null,last:0,err:'',busy:false};
+var SY={av:false,on:false,code:'',T:null,last:0,err:'',busy:false,base:'',fl:false};
+var SRVDEF='https://w.73030si.online';
 function syCode(){try{return localStorage.getItem('stk2:code')||''}catch(e){return ''}}
-function syApi(path,method,body){var o={method:method||'GET',headers:{'X-Code':SY.code}};if(body!==undefined){o.body=JSON.stringify(body);o.headers['Content-Type']='application/json'}return fetch(path,o)}
+function syApi(path,method,body){var o={method:method||'GET',headers:{'X-Code':SY.code}};if(body!==undefined){o.body=JSON.stringify(body);o.headers['Content-Type']='application/json'}return fetch(SY.base+path,o)}
+function sySrv(){try{return localStorage.getItem('stk2:srv')||SRVDEF}catch(e){return SRVDEF}}
 function syUi(){var b=$('sybox');if(!b)return;if(!SY.av){b.classList.add('hide');return}b.classList.remove('hide');
- if(!SY.on){b.innerHTML='<div class="fs-t">المزامنة بين الأجهزة (السيرفر)</div><div class="mu">أدخل رمز الدخول ليُحفظ الجرد على السيرفر ويظهر على كل أجهزتك.</div>'+(SY.err?'<div class="msg bad" style="margin-top:8px">'+esc(SY.err)+'</div>':'')+'<div class="row"><input id="sycode" type="password" placeholder="رمز الدخول" autocomplete="off" style="flex:1;min-width:140px"><button class="p" data-sy="login">ربط</button></div>'}
- else{b.innerHTML='<div class="fs-t good">✔ المزامنة مع السيرفر مفعّلة</div><div class="mu">'+(SY.err?'<span class="badc">'+esc(SY.err)+'</span>':(SY.last?'آخر مزامنة '+pad2(new Date(SY.last).getHours())+':'+pad2(new Date(SY.last).getMinutes()):'جارٍ المزامنة...'))+'</div><div class="row"><button data-sy="now">مزامنة الآن</button><button data-sy="out">تسجيل الخروج</button></div>'}}
+ if(!SY.on){b.innerHTML='<div class="fs-t">المزامنة بين الأجهزة (السيرفر)</div><div class="mu">أدخل رمز الدخول ليُحفظ الجرد على السيرفر ويظهر على كل أجهزتك.</div>'+(SY.err?'<div class="msg bad" style="margin-top:8px">'+esc(SY.err)+'</div>':'')+''+(SY.fl?'<input id="sysrv" class="ltr" placeholder="عنوان السيرفر" value="'+esc(SY.base||sySrv())+'" style="width:100%;margin-top:8px">':'')+'<div class="row"><input id="sycode" type="password" placeholder="رمز الدخول" autocomplete="off" style="flex:1;min-width:140px"><button class="p" data-sy="login">ربط</button></div>'}
+ else{b.innerHTML='<div class="fs-t good">✔ المزامنة مع السيرفر مفعّلة</div><div class="mu">'+(SY.err?'<span class="badc">'+esc(SY.err)+'</span>':(SY.last?'آخر مزامنة '+pad2(new Date(SY.last).getHours())+':'+pad2(new Date(SY.last).getMinutes()):'جارٍ المزامنة...'))+'</div><div class="row"><button class="p" data-sy="now">'+(SY.fl?'إرسال إلى السيرفر / تحديث':'مزامنة الآن')+'</button><button data-sy="out">تسجيل الخروج</button></div>'}}
 function syLocal(id){return Promise.all([kvGet('data',id),kvGet('state',id),kvGet('meta',id)]).then(function(r){
  if(id===SID&&D&&CUR)return{data:D,state:S,meta:CUR};return{data:r[0],state:r[1],meta:r[2]}})}
 function syPush(id,full){return syLocal(id).then(function(x){if(!x.meta||!x.data)return;
@@ -332,10 +334,11 @@ function syAll(){if(!SY.on||SY.busy)return Promise.resolve(false);SY.busy=true;v
     if(!e||e.del||e.updated<m.updated)chain=chain.then(function(){return syPush(id,!e||!!e.del)})});
    return chain})}).then(function(){if(SY.on){SY.last=Date.now();SY.err=''}}).catch(function(e){SY.err='تعذّرت المزامنة (تحقق من الاتصال).'}).then(function(){SY.busy=false;syUi();return ch})}
 function sySchedule(){if(!SY.on||SY.T||!SID)return;var id=SID;SY.T=setTimeout(function(){SY.T=null;syPush(id,false).catch(function(){SY.err='تعذّرت المزامنة (تحقق من الاتصال).';syUi()})},3000)}
-function syInit(){if(location.protocol.indexOf('http')!==0)return Promise.resolve();
+function syInit(){if(location.protocol.indexOf('http')!==0){SY.fl=true;SY.base=sySrv().replace(/\/+$/,'');SY.av=true;SY.code=syCode();SY.on=!!SY.code;syUi();
+  if(!SY.on)return Promise.resolve();return syAll().then(function(ch){if(ch&&!SID)return renderHome()})}
  return fetch('/api/ping').then(function(r){return r.ok?r.json():null}).then(function(o){if(!o||!o.ok)return;SY.av=true;SY.code=syCode();SY.on=!!SY.code;syUi();
   if(SY.on)return syAll().then(function(ch){if(ch&&!SID)return renderHome()})}).catch(function(){})}
-function syLogin(){var c=($('sycode')||{}).value||'';if(!c)return;SY.code=c;
+function syLogin(){var c=($('sycode')||{}).value||'';if(!c)return;SY.code=c;if(SY.fl){var u=(($('sysrv')||{}).value||'').trim().replace(/\/+$/,'');if(!/^https?:\/\//.test(u)){SY.err='اكتب عنوان السيرفر كاملاً مع https://';syUi();return}SY.base=u;try{localStorage.setItem('stk2:srv',u)}catch(e){}}
  syApi('/api/list').then(function(r){if(r.status===401){SY.err='رمز الدخول غير صحيح.';SY.on=false;syUi();return}if(!r.ok)throw new Error();try{localStorage.setItem('stk2:code',c)}catch(e){}SY.on=true;SY.err='';syUi();return syAll().then(function(){return renderHome()})}).catch(function(){SY.err='تعذّر الاتصال بالسيرفر.';syUi()})}
 $('sybox').addEventListener('click',function(e){var b=e.target.closest('button'),a=b&&b.getAttribute('data-sy');if(!a)return;
  if(a==='login')syLogin();else if(a==='now'){SY.last=0;syUi();flush().then(syAll).then(function(){return renderHome()})}
